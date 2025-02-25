@@ -2,11 +2,12 @@ XPS Tools
 =========
 Blender an addon to Export/Import Haydee assets.
 
-With Blender 2.80 released there where many changes.
+With Blender 4.40 released there where many changes.
 
-From v2.0.0 of this addon will only work with Blender 2.80+ (and viceversa).
+From v2.1.0 of this addon will only work with Blender 4.4.
 For Blender 2.79 download v1.8.7
 
+- Blender 4.40 ==> v2.1.0
 - Blender 2.80 ==> v2.0.0
 - Blender 2.79 ==> v1.8.7
 
@@ -21,6 +22,5 @@ Main Features:
 - Creates Materials on import
 - Easily set a new rest pose for the model
 
-more info at:
-http://johnzero7.github.io/XNALaraMesh/
+
 
