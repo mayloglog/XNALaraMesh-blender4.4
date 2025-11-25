@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+
+id = "io_xnalara"
+version = "2.2.0" 
+name = "io-XNALara-Tools"
+tagline = "Import-Export for XNALara/XPS files"
+maintainer = "maylog"
+type = "add-on"
+
+website = "https://github.com/mayloglog/XNALaraMesh-blender4.4"
+
+tags = ["Import-Export", "Pipeline"]
+
+blender_version_min = "5.0.0"
+
+license = ['SPDX:GPL-3.0-or-later']

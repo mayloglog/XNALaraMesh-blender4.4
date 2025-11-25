@@ -1,441 +1,459 @@
+import os
+from . import import_xnalara_pose
+from . import export_xnalara_pose
+from . import mock_xps_data
+from . import write_ascii_xps
+from . import write_bin_xps
+from . import bin_ops
+from . import xps_material
+from . import xps_types
+from . import node_shader_utils
+from .timing import timing
+
 import bpy
-from bpy_extras import node_shader_utils
 from mathutils import Vector
-
-
-class XPSShaderWrapper(node_shader_utils.ShaderWrapper):
-    """
-    Hard coded shader setup, based in XPS Shader.
-    Should cover most common cases on import, and gives a basic nodal shaders support for export.
-    """
-    NODES_LIST = (
-        "node_out",
-        "node_principled_bsdf",
-
-        "_node_normalmap",
-        "_node_texcoords",
-    )
-
-    __slots__ = (
-        "is_readonly",
-        "material",
-        *NODES_LIST,
-    )
-
-    NODES_LIST = node_shader_utils.ShaderWrapper.NODES_LIST + NODES_LIST
-
-    def __init__(self, material, is_readonly=True, use_nodes=True):
-        super(XPSShaderWrapper, self).__init__(material, is_readonly, use_nodes)
-
-    def update(self):
-        super(XPSShaderWrapper, self).update()
-
-        if not self.use_nodes:
-            return
-
-        tree = self.material.node_tree
-
-        nodes = tree.nodes
-        links = tree.links
-
-        # --------------------------------------------------------------------
-        # Main output and shader.
-        node_out = None
-        node_principled = None
-        for n in nodes:
-            # print("loop:",n.name)
-            if n.bl_idname == 'ShaderNodeOutputMaterial' and n.inputs[0].is_linked:
-                # print("output found:")
-                node_out = n
-                node_principled = n.inputs[0].links[0].from_node
-            elif n.bl_idname == 'ShaderNodeGroup' and n.node_tree.name == 'XPS Shader' and n.outputs[0].is_linked:
-                # print("xps shader found")
-                node_principled = n
-                for lnk in n.outputs[0].links:
-                    node_out = lnk.to_node
-                    if node_out.bl_idname == 'ShaderNodeOutputMaterial':
-                        break
-            if (
-                node_out is not None and node_principled is not None
-                and node_out.bl_idname == 'ShaderNodeOutputMaterial'
-                and node_principled.bl_idname == 'ShaderNodeGroup'
-                and node_principled.node_tree.name == 'XPS Shader'
-            ):
-                break
-            node_out = node_principled = None  # Could not find a valid pair, let's try again
-
-        if node_out is not None:
-            self._grid_to_location(0, 0, ref_node=node_out)
-        elif not self.is_readonly:
-            node_out = nodes.new(type='ShaderNodeOutputMaterial')
-            node_out.label = "Material Out"
-            node_out.target = 'ALL'
-            self._grid_to_location(1, 1, dst_node=node_out)
-        self.node_out = node_out
-
-        if node_principled is not None:
-            self._grid_to_location(0, 0, ref_node=node_principled)
-        elif not self.is_readonly:
-            node_principled = nodes.new(type='XPS Shader')
-            node_principled.label = "Principled BSDF"
-            self._grid_to_location(0, 1, dst_node=node_principled)
-            # Link
-            links.new(node_principled.outputs["BSDF"], self.node_out.inputs["Surface"])
-        self.node_principled_bsdf = node_principled
-
-        # --------------------------------------------------------------------
-        # Normal Map, lazy initialization...
-        self._node_normalmap = ...
-
-        # --------------------------------------------------------------------
-        # Tex Coords, lazy initialization...
-        self._node_texcoords = ...
-
-    # --------------------------------------------------------------------
-    # Get Image wrapper.
-
-    def node_texture_get(self, inputName):
-        if not self.use_nodes or self.node_principled_bsdf is None:
-            return None
-        return node_shader_utils.ShaderImageTextureWrapper(
-            self, self.node_principled_bsdf,
-            self.node_principled_bsdf.inputs[inputName],
-            grid_row_diff=1,
-        )
-
-    # --------------------------------------------------------------------
-    # Get Environment wrapper.
-
-    def node_environment_get(self, inputName):
-        if not self.use_nodes or self.node_principled_bsdf is None:
-            return None
-        return ShaderEnvironmentTextureWrapper(
-            self, self.node_principled_bsdf,
-            self.node_principled_bsdf.inputs[inputName],
-            grid_row_diff=1,
-        )
-
-    # --------------------------------------------------------------------
-    # Diffuse Texture.
-
-    def diffuse_texture_get(self):
-        return self.node_texture_get("Diffuse")
-
-    diffuse_texture = property(diffuse_texture_get)
-
-    # --------------------------------------------------------------------
-    # Light Map.
-
-    def lightmap_texture_get(self):
-        return self.node_texture_get("Lightmap")
-
-    lightmap_texture = property(lightmap_texture_get)
-
-    # --------------------------------------------------------------------
-    # Specular.
-
-    def specular_texture_get(self):
-        return self.node_texture_get("Specular")
-
-    specular_texture = property(specular_texture_get)
-
-    # --------------------------------------------------------------------
-    # Emission texture.
-
-    def emission_texture_get(self):
-        return self.node_texture_get("Emission")
-
-    emission_texture = property(emission_texture_get)
-
-    # --------------------------------------------------------------------
-    # Normal map.
-
-    def normalmap_texture_get(self):
-        return self.node_texture_get("Bump Map")
-
-    normalmap_texture = property(normalmap_texture_get)
-
-    # --------------------------------------------------------------------
-    # Normal Mask.
-
-    def normal_mask_texture_get(self):
-        return self.node_texture_get("Bump Mask")
-
-    normal_mask_texture = property(normal_mask_texture_get)
-
-    # --------------------------------------------------------------------
-    # Micro Bump 1.
-
-    def microbump1_texture_get(self):
-        return self.node_texture_get("MicroBump 1")
-
-    microbump1_texture = property(microbump1_texture_get)
-
-    # --------------------------------------------------------------------
-    # Micro Bump 2.
-
-    def microbump2_texture_get(self):
-        return self.node_texture_get("MicroBump 2")
-
-    microbump2_texture = property(microbump2_texture_get)
-
-    # --------------------------------------------------------------------
-    # Environment
-
-    def environment_texture_get(self):
-        return self.node_environment_get("Environment")
-
-    environment_texture = property(environment_texture_get)
-
-
-class ShaderEnvironmentTextureWrapper():
-    """
-    Generic 'environment texture'-like wrapper, handling image node
-    """
-
-    # Note: this class assumes we are using nodes, otherwise it should never be used...
-
-    NODES_LIST = (
-        "node_dst",
-        "socket_dst",
-
-        "_node_image",
-        "_node_mapping",
-    )
-
-    __slots__ = (
-        "owner_shader",
-        "is_readonly",
-        "grid_row_diff",
-        "use_alpha",
-        "colorspace_is_data",
-        "colorspace_name",
-        *NODES_LIST,
-    )
-
-    def __new__(cls, owner_shader: node_shader_utils.ShaderWrapper, node_dst, socket_dst, *_args, **_kwargs):
-        instance = owner_shader._textures.get((node_dst, socket_dst), None)
-        if instance is not None:
-            return instance
-        instance = super(ShaderEnvironmentTextureWrapper, cls).__new__(cls)
-        owner_shader._textures[(node_dst, socket_dst)] = instance
-        return instance
-
-    def __init__(self, owner_shader: node_shader_utils.ShaderWrapper, node_dst, socket_dst, grid_row_diff=0,
-                 use_alpha=False, colorspace_is_data=..., colorspace_name=...):
-        self.owner_shader = owner_shader
-        self.is_readonly = owner_shader.is_readonly
-        self.node_dst = node_dst
-        self.socket_dst = socket_dst
-        self.grid_row_diff = grid_row_diff
-        self.use_alpha = use_alpha
-        self.colorspace_is_data = colorspace_is_data
-        self.colorspace_name = colorspace_name
-
-        self._node_image = ...
-        self._node_mapping = ...
-
-        # tree = node_dst.id_data
-        # nodes = tree.nodes
-        # links = tree.links
-
-        if socket_dst.is_linked:
-            from_node = socket_dst.links[0].from_node
-            if from_node.bl_idname == 'ShaderNodeTexEnvironment':
-                self._node_image = from_node
-
-        if self.node_image is not None:
-            socket_dst = self.node_image.inputs["Vector"]
-            if socket_dst.is_linked:
-                from_node = socket_dst.links[0].from_node
-                if from_node.bl_idname == 'ShaderNodeMapping':
-                    self._node_mapping = from_node
-
-    def copy_from(self, tex):
-        # Avoid generating any node in source texture.
-        is_readonly_back = tex.is_readonly
-        tex.is_readonly = True
-
-        if tex.node_image is not None:
-            self.image = tex.image
-            self.projection = tex.projection
-            self.texcoords = tex.texcoords
-            self.copy_mapping_from(tex)
-
-        tex.is_readonly = is_readonly_back
-
-    def copy_mapping_from(self, tex):
-        # Avoid generating any node in source texture.
-        is_readonly_back = tex.is_readonly
-        tex.is_readonly = True
-
-        if tex.node_mapping is None:  # Used to actually remove mapping node.
-            if self.has_mapping_node():
-                # We assume node_image can never be None in that case...
-                # Find potential existing link into image's Vector input.
-                socket_dst = socket_src = None
-                if self.node_mapping.inputs["Vector"].is_linked:
-                    socket_dst = self.node_image.inputs["Vector"]
-                    socket_src = self.node_mapping.inputs["Vector"].links[0].from_socket
-
-                tree = self.owner_shader.material.node_tree
-                tree.nodes.remove(self.node_mapping)
-                self._node_mapping = None
-
-                # If previously existing, re-link texcoords -> image
-                if socket_src is not None:
-                    tree.links.new(socket_src, socket_dst)
-        elif self.node_mapping is not None:
-            self.translation = tex.translation
-            self.rotation = tex.rotation
-            self.scale = tex.scale
-
-        tex.is_readonly = is_readonly_back
-
-    # --------------------------------------------------------------------
-    # Image.
-
-    def node_image_get(self):
-        if self._node_image is ...:
-            # Running only once, trying to find a valid image node.
-            if self.socket_dst.is_linked:
-                node_image = self.socket_dst.links[0].from_node
-                if node_image.bl_idname == 'ShaderNodeTexImage':
-                    self._node_image = node_image
-                    self.owner_shader._grid_to_location(0, 0, ref_node=node_image)
-            if self._node_image is ...:
-                self._node_image = None
-        if self._node_image is None and not self.is_readonly:
-            tree = self.owner_shader.material.node_tree
-
-            node_image = tree.nodes.new(type='ShaderNodeTexImage')
-            self.owner_shader._grid_to_location(-1, 0 + self.grid_row_diff, dst_node=node_image, ref_node=self.node_dst)
-
-            tree.links.new(node_image.outputs["Alpha" if self.use_alpha else "Color"], self.socket_dst)
-
-            self._node_image = node_image
-        return self._node_image
-
-    node_image = property(node_image_get)
-
-    def image_get(self):
-        return self.node_image.image if self.node_image is not None else None
-
-    @node_shader_utils._set_check
-    def image_set(self, image):
-        if self.colorspace_is_data is not ...:
-            if image.colorspace_settings.is_data != self.colorspace_is_data and image.users >= 1:
-                image = image.copy()
-            image.colorspace_settings.is_data = self.colorspace_is_data
-        if self.colorspace_name is not ...:
-            if image.colorspace_settings.is_data != self.colorspace_is_data and image.users >= 1:
-                image = image.copy()
-            image.colorspace_settings.name = self.colorspace_name
-        self.node_image.image = image
-
-    image = property(image_get, image_set)
-
-    def projection_get(self):
-        return self.node_image.projection if self.node_image is not None else 'EQUIRECTANGULAR'
-
-    @node_shader_utils._set_check
-    def projection_set(self, projection):
-        self.node_image.projection = projection
-
-    projection = property(projection_get, projection_set)
-
-    def texcoords_get(self):
-        if self.node_image is not None:
-            socket = (self.node_mapping if self.has_mapping_node() else self.node_image).inputs["Vector"]
-            if socket.is_linked:
-                return socket.links[0].from_socket.name
-        return 'UV'
-
-    @node_shader_utils._set_check
-    def texcoords_set(self, texcoords):
-        # Image texture node already defaults to UVs, no extra node needed.
-        # ONLY in case we do not have any texcoords mapping!!!
-        if texcoords == 'UV' and not self.has_mapping_node():
-            return
-        tree = self.node_image.id_data
-        links = tree.links
-        node_dst = self.node_mapping if self.has_mapping_node() else self.node_image
-        socket_src = self.owner_shader.node_texcoords.outputs[texcoords]
-        links.new(socket_src, node_dst.inputs["Vector"])
-
-    texcoords = property(texcoords_get, texcoords_set)
-
-    # --------------------------------------------------------------------
-    # Mapping.
-
-    def has_mapping_node(self):
-        return self._node_mapping not in {None, ...}
-
-    def node_mapping_get(self):
-        if self._node_mapping is ...:
-            # Running only once, trying to find a valid mapping node.
-            if self.node_image is None:
-                return None
-            if self.node_image.inputs["Vector"].is_linked:
-                node_mapping = self.node_image.inputs["Vector"].links[0].from_node
-                if node_mapping.bl_idname == 'ShaderNodeMapping':
-                    self._node_mapping = node_mapping
-                    self.owner_shader._grid_to_location(0, 0 + self.grid_row_diff, ref_node=node_mapping)
-            if self._node_mapping is ...:
-                self._node_mapping = None
-        if self._node_mapping is None and not self.is_readonly:
-            # Find potential existing link into image's Vector input.
-            socket_dst = self.node_image.inputs["Vector"]
-            # If not already existing, we need to create texcoords -> mapping link (from UV).
-            socket_src = (
-                socket_dst.links[0].from_socket if socket_dst.is_linked
-                else self.owner_shader.node_texcoords.outputs['UV']
-            )
-
-            tree = self.owner_shader.material.node_tree
-            node_mapping = tree.nodes.new(type='ShaderNodeMapping')
-            node_mapping.vector_type = 'TEXTURE'
-            self.owner_shader._grid_to_location(-1, 0, dst_node=node_mapping, ref_node=self.node_image)
-
-            # Link mapping -> image node.
-            tree.links.new(node_mapping.outputs["Vector"], socket_dst)
-            # Link texcoords -> mapping.
-            tree.links.new(socket_src, node_mapping.inputs["Vector"])
-
-            self._node_mapping = node_mapping
-        return self._node_mapping
-
-    node_mapping = property(node_mapping_get)
-
-    def translation_get(self):
-        if self.node_mapping is None:
-            return Vector((0.0, 0.0, 0.0))
-        return self.node_mapping.inputs['Location'].default_value
-
-    @node_shader_utils._set_check
-    def translation_set(self, translation):
-        self.node_mapping.inputs['Location'].default_value = translation
-
-    translation = property(translation_get, translation_set)
-
-    def rotation_get(self):
-        if self.node_mapping is None:
-            return Vector((0.0, 0.0, 0.0))
-        return self.node_mapping.inputs['Rotation'].default_value
-
-    @node_shader_utils._set_check
-    def rotation_set(self, rotation):
-        self.node_mapping.inputs['Rotation'].default_value = rotation
-
-    rotation = property(rotation_get, rotation_set)
-
-    def scale_get(self):
-        if self.node_mapping is None:
-            return Vector((1.0, 1.0, 1.0))
-        return self.node_mapping.inputs['Scale'].default_value
-
-    @node_shader_utils._set_check
-    def scale_set(self, scale):
-        self.node_mapping.inputs['Scale'].default_value = scale
-
-    scale = property(scale_get, scale_set)
+from collections import Counter
+
+rootDir = ''
+
+def coordTransform(coords):
+    x, y, z = coords
+    y = -y
+    return (x, z, y)
+
+def faceTransform(face):
+    return [face[0], face[2], face[1]]
+
+def uvTransform(uv):
+    u = uv[0] + xpsSettings.uvDisplX
+    v = 1 - xpsSettings.uvDisplY - uv[1]
+    return [u, v]
+
+def rangeFloatToByte(float):
+    return int(float * 255) % 256
+
+def rangeByteToFloat(byte):
+    return byte / 255
+
+def uvTransformLayers(uvLayers):
+    return list(map(uvTransform, uvLayers))
+
+def getArmature(selected_obj):
+    armature_obj = next((obj for obj in selected_obj
+                         if obj.type == 'ARMATURE'), None)
+    return armature_obj
+
+def fillArray(array, minLen, value):
+    filled = array + [value] * (minLen - len(array))
+    return filled
+
+def getOutputFilename(xpsSettingsAux):
+    global xpsSettings
+    xpsSettings = xpsSettingsAux
+    blenderExportSetup()
+    xpsExport()
+    blenderExportFinalize()
+
+def blenderExportSetup():
+    objectMode()
+
+def blenderExportFinalize():
+    pass
+
+def objectMode():
+    current_mode = bpy.context.mode
+    if bpy.context.view_layer.objects.active and current_mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+def saveXpsFile(filename, xpsData):
+    dirpath, file = os.path.split(filename)
+    basename, ext = os.path.splitext(file)
+    if ext.lower() in ('.mesh', '.xps'):
+        write_bin_xps.writeXpsModel(xpsSettings, filename, xpsData)
+    elif ext.lower() in('.ascii'):
+        write_ascii_xps.writeXpsModel(xpsSettings, filename, xpsData)
+
+@timing
+def xpsExport():
+    global rootDir
+    global xpsData
+
+    print("------------------------------------------------------------")
+    print("---------------EXECUTING XPS PYTHON EXPORTER----------------")
+    print("------------------------------------------------------------")
+    print("Exporting file: ", xpsSettings.filename)
+
+    if xpsSettings.exportOnlySelected:
+        exportObjects = bpy.context.selected_objects
+    else:
+        exportObjects = bpy.context.visible_objects
+
+    selectedArmature, selectedMeshes = exportSelected(exportObjects)
+
+    xpsBones = exportArmature(selectedArmature)
+    xpsMeshes = exportMeshes(selectedArmature, selectedMeshes)
+
+    poseString = ''
+    if(xpsSettings.expDefPose):
+        xpsPoseData = export_xnalara_pose.xpsPoseData(selectedArmature)
+        poseString = write_ascii_xps.writePose(xpsPoseData).read()
+
+    header = None
+    hasHeader = bin_ops.hasHeader(xpsSettings.format)
+    if hasHeader:
+        header = mock_xps_data.buildHeader(poseString)
+        header.version_mayor = xpsSettings.versionMayor
+        header.version_minor = xpsSettings.versionMinor
+    xpsData = xps_types.XpsData(header=header, bones=xpsBones,
+                                meshes=xpsMeshes)
+
+    saveXpsFile(xpsSettings.filename, xpsData)
+
+def exportSelected(objects):
+    meshes = []
+    armatures = []
+    armature = None
+    for object in objects:
+        if object.type == 'ARMATURE':
+            armatures.append(object)
+        elif object.type == 'MESH':
+            meshes.append(object)
+        armature = object.find_armature() or armature
+    return armature, meshes
+
+def exportArmature(armature):
+    xpsBones = []
+    if armature:
+        bones = armature.data.bones
+        print('Exporting Armature', len(bones), 'Bones')
+        activebones = bones
+        for bone in activebones:
+            objectMatrix = armature.matrix_local
+            id = bones.find(bone.name)
+            name = bone.name
+            co = coordTransform(objectMatrix @ bone.head_local.xyz)
+            parentId = None
+            if bone.parent:
+                parentId = bones.find(bone.parent.name)
+            xpsBone = xps_types.XpsBone(id, name, co, parentId)
+            xpsBones.append(xpsBone)
+    if not xpsBones:
+        xpsBone = xps_types.XpsBone(0, 'root', (0, 0, 0), -1)
+        xpsBones.append(xpsBone)
+
+    return xpsBones
+
+def exportMeshes(selectedArmature, selectedMeshes):
+    xpsMeshes = []
+    for mesh in selectedMeshes:
+        print('Exporting Mesh:', mesh.name)
+        meshName = makeNamesFromMesh(mesh)
+        meshTextures = getXpsMatTextures(mesh)
+        meshVerts, meshFaces = getXpsVertices(selectedArmature, mesh)
+        meshUvCount = len(mesh.data.uv_layers)
+
+        materialsCount = len(mesh.data.materials)
+        if (materialsCount > 0):
+            for idx in range(materialsCount):
+                xpsMesh = xps_types.XpsMesh(meshName[idx], meshTextures[idx],
+                                            meshVerts[idx], meshFaces[idx],
+                                            meshUvCount)
+                xpsMeshes.append(xpsMesh)
+        else:
+            dummyTexture = [xps_types.XpsTexture(0, 'dummy.png', 0)]
+            xpsMesh = xps_types.XpsMesh(meshName[0], dummyTexture,
+                                        meshVerts[0], meshFaces[0],
+                                        meshUvCount)
+            xpsMeshes.append(xpsMesh)
+
+    return xpsMeshes
+
+def makeNamesFromMaterials(mesh):
+    separatedMeshNames = []
+    materials = mesh.data.materials
+    for material in materials:
+        separatedMeshNames.append(material.name)
+    return separatedMeshNames
+
+def makeNamesFromMesh(mesh):
+    meshFullName = mesh.name
+    renderType = xps_material.makeRenderType(meshFullName)
+    meshName = renderType.meshName
+
+    separatedMeshNames = []
+    separatedMeshNames.append(xps_material.makeRenderTypeName(renderType))
+
+    materialsCount = len(mesh.data.materials)
+    for mat_idx in range(1, materialsCount):
+        partName = '{0}.material{1:02d}'.format(meshName, mat_idx)
+        renderType.meshName = partName
+        fullName = xps_material.makeRenderTypeName(renderType)
+        separatedMeshNames.append(fullName)
+    return separatedMeshNames
+
+def addTexture(tex_dic, texture_type, texture):
+    if texture is not None:
+        tex_dic[texture_type] = texture
+
+def getTextureFilename(texture):
+    textureFile = None
+    if texture and texture.image is not None:
+        texFilePath = texture.image.filepath
+        absFilePath = bpy.path.abspath(texFilePath)
+        texturePath, textureFile = os.path.split(absFilePath)
+    return textureFile
+
+def makeXpsTexture(mesh, material):
+    active_uv = mesh.data.uv_layers.active
+    active_uv_index = mesh.data.uv_layers.active_index
+    xpsShaderWrapper = node_shader_utils.XPSShaderWrapper(material, use_nodes=True)
+
+    tex_dic = {}
+    texture = getTextureFilename(xpsShaderWrapper.diffuse_texture)
+    addTexture(tex_dic, xps_material.TextureType.DIFFUSE, texture)
+    texture = getTextureFilename(xpsShaderWrapper.lightmap_texture)
+    addTexture(tex_dic, xps_material.TextureType.LIGHT, texture)
+    texture = getTextureFilename(xpsShaderWrapper.normalmap_texture)
+    addTexture(tex_dic, xps_material.TextureType.BUMP, texture)
+    texture = getTextureFilename(xpsShaderWrapper.normal_mask_texture)
+    addTexture(tex_dic, xps_material.TextureType.MASK, texture)
+    texture = getTextureFilename(xpsShaderWrapper.microbump1_texture)
+    addTexture(tex_dic, xps_material.TextureType.BUMP1, texture)
+    texture = getTextureFilename(xpsShaderWrapper.microbump2_texture)
+    addTexture(tex_dic, xps_material.TextureType.BUMP2, texture)
+    texture = getTextureFilename(xpsShaderWrapper.specular_texture)
+    addTexture(tex_dic, xps_material.TextureType.SPECULAR, texture)
+    texture = getTextureFilename(xpsShaderWrapper.environment_texture)
+    addTexture(tex_dic, xps_material.TextureType.ENVIRONMENT, texture)
+    texture = getTextureFilename(xpsShaderWrapper.emission_texture)
+    addTexture(tex_dic, xps_material.TextureType.EMISSION, texture)
+
+    renderType = xps_material.makeRenderType(mesh.name)
+    renderGroup = xps_material.RenderGroup(renderType)
+    rgTextures = renderGroup.rgTexType
+
+    texutre_list = []
+    for tex_type in rgTextures:
+        texture = tex_dic.get(tex_type, 'missing.png')
+        texutre_list.append(texture)
+
+    xpsTextures = []
+    for id, textute in enumerate(texutre_list):
+        xpsTexture = xps_types.XpsTexture(id, textute, 0)
+        xpsTextures.append(xpsTexture)
+
+    return xpsTextures
+
+def getTextures(mesh, material):
+    textures = []
+    xpsTextures = makeXpsTexture(mesh, material)
+    return xpsTextures
+
+def getXpsMatTextures(mesh):
+    xpsMatTextures = []
+    for material_slot in mesh.material_slots:
+        material = material_slot.material
+        xpsTextures = getTextures(mesh, material)
+        xpsMatTextures.append(xpsTextures)
+    return xpsMatTextures
+
+def generateVertexKey(vertex, uvCoord, seamSideId):
+    key = '{}{}{}{}'.format(vertex.co, vertex.normal, uvCoord, seamSideId)
+    return key
+
+def getXpsVertices(selectedArmature, mesh):
+    mapMatVertexKeys = []
+    xpsMatVertices = []
+    xpsMatFaces = []
+
+    exportVertColors = xpsSettings.vColors
+    armature = mesh.find_armature()
+    objectMatrix = mesh.matrix_world
+    rotQuaternion = mesh.matrix_world.to_quaternion()
+
+    verts_nor = xpsSettings.exportNormals
+
+    mesh.data.calc_tangents()
+    mesh.data.calc_loop_triangles()
+    mesh.data.update(calc_edges=True)
+
+    matCount = len(mesh.data.materials)
+    if (matCount > 0):
+        for idx in range(matCount):
+            xpsMatVertices.append([])
+            xpsMatFaces.append([])
+            mapMatVertexKeys.append({})
+    else:
+        xpsMatVertices.append([])
+        xpsMatFaces.append([])
+        mapMatVertexKeys.append({})
+
+    meshVerts = mesh.data.vertices
+    meshEdges = mesh.data.edges
+    hasSeams = any(edge.use_seam for edge in meshEdges)
+    tessFaces = mesh.data.loop_triangles[:]
+    tessface_uv_tex = mesh.data.uv_layers
+    tessface_vert_color = mesh.data.vertex_colors
+    meshEdgeKeys = mesh.data.edge_keys
+
+    vertEdges = [[] for x in range(len(meshVerts))]
+    tessEdgeFaces = {}
+
+    preserveSeams = xpsSettings.preserveSeams
+    if (preserveSeams and hasSeams):
+        tessEdgeCount = Counter(tessEdgeKey for tessFace in tessFaces for tessEdgeKey in tessFace.edge_keys)
+
+        for tessface in tessFaces:
+            for tessEdgeKey in tessface.edge_keys:
+                if tessEdgeFaces.get(tessEdgeKey) is None:
+                    tessEdgeFaces[tessEdgeKey] = []
+                tessEdgeFaces[tessEdgeKey].append(tessface.index)
+
+        edgeKeyIndex = {val: index for index, val in enumerate(meshEdgeKeys)}
+
+        for key in meshEdgeKeys:
+            meshEdge = meshEdges[edgeKeyIndex[key]]
+            vert1, vert2 = key
+            vertEdges[vert1].append(meshEdge)
+            vertEdges[vert2].append(meshEdge)
+
+    faceEdges = []
+    faceSeams = []
+
+    for face in tessFaces:
+        material_index = face.material_index
+        xpsVertices = xpsMatVertices[material_index]
+        xpsFaces = xpsMatFaces[material_index]
+        mapVertexKeys = mapMatVertexKeys[material_index]
+        faceVerts = []
+        seamSideId = ''
+        faceVertIndices = face.vertices[:]
+        faceUvIndices = face.loops[:]
+
+        for vertEnum, vertIndex in enumerate(faceVertIndices):
+            vertex = meshVerts[vertIndex]
+
+            if (preserveSeams and hasSeams):
+                connectedFaces = set()
+                faceEdges = vertEdges[vertIndex]
+                faceSeams = [edge for edge in faceEdges if edge.use_seam]
+
+                if (len(faceSeams) >= 1):
+                    vertIsBorder = any(tessEdgeCount[edge.index] != 2 for edge in faceEdges)
+                    if (len(faceSeams) > 1) or (len(faceSeams) == 1 and vertIsBorder):
+
+                        oldFacesList = set()
+                        connectedFaces = set([face])
+                        while oldFacesList != connectedFaces:
+
+                            oldFacesList = connectedFaces
+
+                            allEdgeKeys = set(connEdgeKey for connface in connectedFaces for connEdgeKey in connface.edge_keys)
+                            connEdgesKeys = [edge.key for edge in faceEdges]
+                            connEdgesNotSeamsKeys = [seam.key for seam in faceSeams]
+
+                            connectedEdges = allEdgeKeys.intersection(connEdgesKeys).difference(connEdgesNotSeamsKeys)
+                            connectedFaces = set(tessFaces[connFace] for connEdge in connectedEdges for connFace in tessEdgeFaces[connEdge])
+
+                            connectedFaces.add(face)
+
+                faceIndices = [face.index for face in connectedFaces]
+                seamSideId = '|'.join(str(faceIdx) for faceIdx in sorted(faceIndices))
+
+            uvs = getUvs(tessface_uv_tex, faceUvIndices[vertEnum])
+            vertexKey = generateVertexKey(vertex, uvs, seamSideId)
+
+            if vertexKey in mapVertexKeys:
+                vertexID = mapVertexKeys[vertexKey]
+            else:
+                vCoord = coordTransform(objectMatrix @ vertex.co)
+                if verts_nor:
+                    normal = vertex.normal
+                else:
+                    normal = vertex.normal
+                norm = coordTransform(rotQuaternion @ normal)
+                vColor = getVertexColor(exportVertColors, tessface_vert_color, faceUvIndices[vertEnum])
+                boneId, boneWeight = getBoneWeights(mesh, vertex, armature)
+
+                boneWeights = []
+                for idx in range(len(boneId)):
+                    boneWeights.append(xps_types.BoneWeight(boneId[idx],
+                                                            boneWeight[idx]))
+                vertexID = len(xpsVertices)
+                mapVertexKeys[vertexKey] = vertexID
+                xpsVertex = xps_types.XpsVertex(vertexID, vCoord, norm, vColor, uvs,
+                                                boneWeights)
+                xpsVertices.append(xpsVertex)
+            faceVerts.append(vertexID)
+
+        meshFaces = getXpsFace(faceVerts)
+        xpsFaces.extend(meshFaces)
+
+    return xpsMatVertices, xpsMatFaces
+
+def getUvs(tessface_uv_tex, uvIndex):
+    uvs = []
+    for tessface_uv_layer in tessface_uv_tex:
+        uvCoord = tessface_uv_layer.data[uvIndex].uv
+        uvCoord = uvTransform(uvCoord)
+        uvs.append(uvCoord)
+    return uvs
+
+def getVertexColor(exportVertColors, tessface_vert_color, vColorIndex):
+    vColor = None
+    if exportVertColors and tessface_vert_color:
+        vColor = tessface_vert_color[0].data[vColorIndex].color[:]
+    else:
+        vColor = [1, 1, 1, 1]
+
+    vColor = list(map(rangeFloatToByte, vColor))
+    return vColor
+
+def getBoneWeights(mesh, vertice, armature):
+    boneId = []
+    boneWeight = []
+    if armature:
+        for vertGroup in vertice.groups:
+            groupIdx = vertGroup.group
+            boneName = mesh.vertex_groups[groupIdx].name
+            boneIdx = armature.data.bones.find(boneName)
+            weight = vertGroup.weight
+            if boneIdx < 0:
+                boneIdx = 0
+                weight = 0
+            boneId.append(boneIdx)
+            boneWeight.append(weight)
+    boneId = fillArray(boneId, 4, 0)
+    boneWeight = fillArray(boneWeight, 4, 0)
+    return boneId, boneWeight
+
+def getXpsFace(faceVerts):
+    xpsFaces = []
+
+    if len(faceVerts) == 3:
+        xpsFaces.append(faceTransform(faceVerts))
+    elif len(faceVerts) == 4:
+        v1, v2, v3, v4 = faceVerts
+        xpsFaces.append(faceTransform((v1, v2, v3)))
+        xpsFaces.append(faceTransform((v3, v4, v1)))
+
+    return xpsFaces
+
+def boneDictGenerate(filepath, armatureObj):
+    boneNames = sorted([import_xnalara_pose.renameBoneToXps(name) for name in armatureObj.data.bones.keys()])
+    boneDictList = '\n'.join(';'.join((name,) * 2) for name in boneNames)
+    write_ascii_xps.writeBoneDict(filepath, boneDictList)
+
+if __name__ == "__main__":
+    uvDisplX = 0
+    uvDisplY = 0
+    exportOnlySelected = True
+    exportPose = False
+    modProtected = False
+    filename = 'test_file.mesh'
+
+    xpsSettings = xps_types.XpsImportSettings(filename, uvDisplX, uvDisplY,
+                                              exportOnlySelected, exportPose,
+                                              modProtected)
+
+    getOutputFilename(xpsSettings)

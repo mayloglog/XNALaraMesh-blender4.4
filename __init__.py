@@ -8,14 +8,13 @@ bl_info = {
     "version": (2, 2, 0),
     "blender": (5, 0, 0),
     "location": "File > Import-Export > XNALara/XPS",
-    "description": "Import-Export XNALara/XPS",
-    "tracker_url": "https://github.com/johnzero7/xps_tools/issues",
+    "description": "Import-Export XNALara/XPS models, poses and animations",
     "category": "Import-Export",
+    "support": "COMMUNITY",  
 }
 
-
 #############################################
-# support reloading sub-modules
+# Support reloading sub-modules
 _modules = [
     'xps_panels',
     'xps_tools',
@@ -39,76 +38,37 @@ _modules = [
     'timing',
     'material_creator',
     'node_shader_utils',
-    'addon_updater_ops',
+    # addon_updater_ops 已删除
 ]
 
 # Reload previously loaded modules
 if "bpy" in locals():
-    from importlib import reload
-    _modules_loaded[:] = [reload(module) for module in _modules_loaded]
-    del reload
-
+    import importlib
+    for module in _modules_loaded:
+        if module in globals():
+            importlib.reload(globals()[module])
+    _modules_loaded[:] = []
 
 # First import the modules
-__import__(name=__name__, fromlist=_modules)
-_namespace = globals()
-_modules_loaded = [_namespace[name] for name in _modules]
-del _namespace
-# support reloading sub-modules
+for name in _modules:
+    if name in globals():
+        continue
+    full_name = f"{__name__}.{name}"
+    try:
+        mod = __import__(full_name, fromlist=[name])
+        globals()[name] = mod
+    except ImportError as e:
+        print(f"Warning: Failed to import {name}: {e}")
+
+_modules_loaded = [globals()[name] for name in _modules if name in globals()]
 #############################################
 
 import bpy
+from bpy.utils import register_class, unregister_class
 
 
-class UpdaterPreferences(bpy.types.AddonPreferences):
-    """Updater Class."""
-
-    bl_idname = __package__
-
-    # addon updater preferences from `__init__`, be sure to copy all of them
-    auto_check_update: bpy.props.BoolProperty(
-        name="Auto-check for Update",
-        description="If enabled, auto-check for updates using an interval",
-        default=False,
-    )
-    updater_interval_months: bpy.props.IntProperty(
-        name='Months',
-        description="Number of months between checking for updates",
-        default=0,
-        min=0
-    )
-    updater_interval_days: bpy.props.IntProperty(
-        name='Days',
-        description="Number of days between checking for updates",
-        default=7,
-        min=0,
-    )
-    updater_interval_hours: bpy.props.IntProperty(
-        name='Hours',
-        description="Number of hours between checking for updates",
-        default=0,
-        min=0,
-        max=23
-    )
-    updater_interval_minutes: bpy.props.IntProperty(
-        name='Minutes',
-        description="Number of minutes between checking for updates",
-        default=0,
-        min=0,
-        max=59
-    )
-
-    def draw(self, context):
-        """Draw Method."""
-        addon_updater_ops.update_settings_ui(self, context)
-
-#
-# Registration
-#
-
-
+# 所有需要注册的类（去掉了 UpdaterPreferences）
 classesToRegister = [
-    UpdaterPreferences,
     xps_panels.XPSToolsObjectPanel,
     xps_panels.XPSToolsBonesPanel,
     xps_panels.XPSToolsAnimPanel,
@@ -136,8 +96,6 @@ classesToRegister = [
     xps_tools.XpsExportSubMenu,
 ]
 
-
-# Use factory to create method to register and unregister the classes
 registerClasses, unregisterClasses = bpy.utils.register_classes_factory(classesToRegister)
 
 
@@ -145,21 +103,15 @@ def register():
     """Register addon classes."""
     registerClasses()
     xps_tools.register()
-    addon_updater_ops.register(bl_info)
+    print(f"{bl_info['name']} v{bl_info['version']} has been enabled.")
 
 
 def unregister():
     """Unregister addon classes."""
-    addon_updater_ops.unregister()
     xps_tools.unregister()
     unregisterClasses()
+    print(f"{bl_info['name']} has been disabled.")
 
 
 if __name__ == "__main__":
     register()
-
-    # call exporter
-    # bpy.ops.xps_tools.export_model('INVOKE_DEFAULT')
-
-    # call importer
-    # bpy.ops.xps_tools.import_model('INVOKE_DEFAULT')

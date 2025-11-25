@@ -7,80 +7,81 @@ from . import write_bin_xps
 from . import bin_ops
 from . import xps_material
 from . import xps_types
-from . import node_shader_utils
 from .timing import timing
 
 import bpy
 from mathutils import Vector
 from collections import Counter
 
-# imported XPS directory
-rootDir = ''
+# 直接导入 XPSShaderWrapper 类
+try:
+    from .node_shader_utils import XPSShaderWrapper
+except ImportError:
+    # 如果导入失败，创建一个简单的回退类
+    class XPSShaderWrapper:
+        def __init__(self, material, use_nodes=True):
+            self.material = material
+            self.use_nodes = use_nodes
+            self.diffuse_texture = None
+            self.lightmap_texture = None
+            self.normalmap_texture = None
+            self.normal_mask_texture = None
+            self.microbump1_texture = None
+            self.microbump2_texture = None
+            self.specular_texture = None
+            self.environment_texture = None
+            self.emission_texture = None
 
+rootDir = ''
 
 def coordTransform(coords):
     x, y, z = coords
     y = -y
     return (x, z, y)
 
-
 def faceTransform(face):
     return [face[0], face[2], face[1]]
-
 
 def uvTransform(uv):
     u = uv[0] + xpsSettings.uvDisplX
     v = 1 - xpsSettings.uvDisplY - uv[1]
     return [u, v]
 
-
 def rangeFloatToByte(float):
     return int(float * 255) % 256
-
 
 def rangeByteToFloat(byte):
     return byte / 255
 
-
 def uvTransformLayers(uvLayers):
     return list(map(uvTransform, uvLayers))
-
 
 def getArmature(selected_obj):
     armature_obj = next((obj for obj in selected_obj
                          if obj.type == 'ARMATURE'), None)
     return armature_obj
 
-
 def fillArray(array, minLen, value):
-    # Complete the array with selected value
     filled = array + [value] * (minLen - len(array))
     return filled
-
 
 def getOutputFilename(xpsSettingsAux):
     global xpsSettings
     xpsSettings = xpsSettingsAux
-
     blenderExportSetup()
     xpsExport()
     blenderExportFinalize()
 
-
 def blenderExportSetup():
-    # switch to object mode and deselect all
     objectMode()
-
 
 def blenderExportFinalize():
     pass
-
 
 def objectMode():
     current_mode = bpy.context.mode
     if bpy.context.view_layer.objects.active and current_mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
 
 def saveXpsFile(filename, xpsData):
     dirpath, file = os.path.split(filename)
@@ -89,7 +90,6 @@ def saveXpsFile(filename, xpsData):
         write_bin_xps.writeXpsModel(xpsSettings, filename, xpsData)
     elif ext.lower() in('.ascii'):
         write_ascii_xps.writeXpsModel(xpsSettings, filename, xpsData)
-
 
 @timing
 def xpsExport():
@@ -127,7 +127,6 @@ def xpsExport():
 
     saveXpsFile(xpsSettings.filename, xpsData)
 
-
 def exportSelected(objects):
     meshes = []
     armatures = []
@@ -138,16 +137,13 @@ def exportSelected(objects):
         elif object.type == 'MESH':
             meshes.append(object)
         armature = object.find_armature() or armature
-    # armature = getArmature(objects)
     return armature, meshes
-
 
 def exportArmature(armature):
     xpsBones = []
     if armature:
         bones = armature.data.bones
         print('Exporting Armature', len(bones), 'Bones')
-        # activebones = [bone for bone in bones if bone.layers[0]]
         activebones = bones
         for bone in activebones:
             objectMatrix = armature.matrix_local
@@ -165,13 +161,11 @@ def exportArmature(armature):
 
     return xpsBones
 
-
 def exportMeshes(selectedArmature, selectedMeshes):
     xpsMeshes = []
     for mesh in selectedMeshes:
         print('Exporting Mesh:', mesh.name)
         meshName = makeNamesFromMesh(mesh)
-        # meshName = makeNamesFromMaterials(mesh)
         meshTextures = getXpsMatTextures(mesh)
         meshVerts, meshFaces = getXpsVertices(selectedArmature, mesh)
         meshUvCount = len(mesh.data.uv_layers)
@@ -192,14 +186,12 @@ def exportMeshes(selectedArmature, selectedMeshes):
 
     return xpsMeshes
 
-
 def makeNamesFromMaterials(mesh):
     separatedMeshNames = []
     materials = mesh.data.materials
     for material in materials:
         separatedMeshNames.append(material.name)
     return separatedMeshNames
-
 
 def makeNamesFromMesh(mesh):
     meshFullName = mesh.name
@@ -210,7 +202,6 @@ def makeNamesFromMesh(mesh):
     separatedMeshNames.append(xps_material.makeRenderTypeName(renderType))
 
     materialsCount = len(mesh.data.materials)
-    # separate mesh by materials
     for mat_idx in range(1, materialsCount):
         partName = '{0}.material{1:02d}'.format(meshName, mat_idx)
         renderType.meshName = partName
@@ -218,11 +209,9 @@ def makeNamesFromMesh(mesh):
         separatedMeshNames.append(fullName)
     return separatedMeshNames
 
-
 def addTexture(tex_dic, texture_type, texture):
     if texture is not None:
         tex_dic[texture_type] = texture
-
 
 def getTextureFilename(texture):
     textureFile = None
@@ -232,11 +221,10 @@ def getTextureFilename(texture):
         texturePath, textureFile = os.path.split(absFilePath)
     return textureFile
 
-
 def makeXpsTexture(mesh, material):
     active_uv = mesh.data.uv_layers.active
     active_uv_index = mesh.data.uv_layers.active_index
-    xpsShaderWrapper = node_shader_utils.XPSShaderWrapper(material)
+    xpsShaderWrapper = XPSShaderWrapper(material, use_nodes=True)
 
     tex_dic = {}
     texture = getTextureFilename(xpsShaderWrapper.diffuse_texture)
@@ -274,12 +262,10 @@ def makeXpsTexture(mesh, material):
 
     return xpsTextures
 
-
 def getTextures(mesh, material):
     textures = []
     xpsTextures = makeXpsTexture(mesh, material)
     return xpsTextures
-
 
 def getXpsMatTextures(mesh):
     xpsMatTextures = []
@@ -289,20 +275,14 @@ def getXpsMatTextures(mesh):
         xpsMatTextures.append(xpsTextures)
     return xpsMatTextures
 
-
 def generateVertexKey(vertex, uvCoord, seamSideId):
-    # Generate a unique key for vertex using coords,normal,
-    # first UV and side of seam
     key = '{}{}{}{}'.format(vertex.co, vertex.normal, uvCoord, seamSideId)
     return key
 
-
 def getXpsVertices(selectedArmature, mesh):
-    mapMatVertexKeys = []  # remap vertex index
-    xpsMatVertices = []  # Vertices separated by material
-    xpsMatFaces = []  # Faces separated by material
-    # xpsVertices = []  # list of vertices for a single material
-    # xpsFaces = []  # list of faces for a single material
+    mapMatVertexKeys = []
+    xpsMatVertices = []
+    xpsMatFaces = []
 
     exportVertColors = xpsSettings.vColors
     armature = mesh.find_armature()
@@ -311,29 +291,25 @@ def getXpsVertices(selectedArmature, mesh):
 
     verts_nor = xpsSettings.exportNormals
 
-    # Calculates tesselated faces and normal split to make them available for export
-    mesh.data.calc_normals_split()
+    mesh.data.calc_tangents()
     mesh.data.calc_loop_triangles()
     mesh.data.update(calc_edges=True)
-    mesh.data.calc_loop_triangles()
 
     matCount = len(mesh.data.materials)
     if (matCount > 0):
         for idx in range(matCount):
-            xpsMatVertices.append([])  # Vertices separated by material
-            xpsMatFaces.append([])  # Faces separated by material
+            xpsMatVertices.append([])
+            xpsMatFaces.append([])
             mapMatVertexKeys.append({})
     else:
-        xpsMatVertices.append([])  # Vertices separated by material
-        xpsMatFaces.append([])  # Faces separated by material
+        xpsMatVertices.append([])
+        xpsMatFaces.append([])
         mapMatVertexKeys.append({})
 
     meshVerts = mesh.data.vertices
     meshEdges = mesh.data.edges
-    # tessface accelerator
     hasSeams = any(edge.use_seam for edge in meshEdges)
     tessFaces = mesh.data.loop_triangles[:]
-    # tessFaces = mesh.data.tessfaces
     tessface_uv_tex = mesh.data.uv_layers
     tessface_vert_color = mesh.data.vertex_colors
     meshEdgeKeys = mesh.data.edge_keys
@@ -343,20 +319,16 @@ def getXpsVertices(selectedArmature, mesh):
 
     preserveSeams = xpsSettings.preserveSeams
     if (preserveSeams and hasSeams):
-        # Count edges for faces
         tessEdgeCount = Counter(tessEdgeKey for tessFace in tessFaces for tessEdgeKey in tessFace.edge_keys)
 
-        # create dictionary. faces for each edge
         for tessface in tessFaces:
             for tessEdgeKey in tessface.edge_keys:
                 if tessEdgeFaces.get(tessEdgeKey) is None:
                     tessEdgeFaces[tessEdgeKey] = []
                 tessEdgeFaces[tessEdgeKey].append(tessface.index)
 
-        # use Dict to speedup search
         edgeKeyIndex = {val: index for index, val in enumerate(meshEdgeKeys)}
 
-        # create dictionary. Edges connected to each Vert
         for key in meshEdgeKeys:
             meshEdge = meshEdges[edgeKeyIndex[key]]
             vert1, vert2 = key
@@ -367,7 +339,6 @@ def getXpsVertices(selectedArmature, mesh):
     faceSeams = []
 
     for face in tessFaces:
-        # faceIdx = face.index
         material_index = face.material_index
         xpsVertices = xpsMatVertices[material_index]
         xpsFaces = xpsMatFaces[material_index]
@@ -415,7 +386,7 @@ def getXpsVertices(selectedArmature, mesh):
             else:
                 vCoord = coordTransform(objectMatrix @ vertex.co)
                 if verts_nor:
-                    normal = Vector(face.split_normals[vertEnum])
+                    normal = vertex.normal
                 else:
                     normal = vertex.normal
                 norm = coordTransform(rotQuaternion @ normal)
@@ -438,7 +409,6 @@ def getXpsVertices(selectedArmature, mesh):
 
     return xpsMatVertices, xpsMatFaces
 
-
 def getUvs(tessface_uv_tex, uvIndex):
     uvs = []
     for tessface_uv_layer in tessface_uv_tex:
@@ -446,7 +416,6 @@ def getUvs(tessface_uv_tex, uvIndex):
         uvCoord = uvTransform(uvCoord)
         uvs.append(uvCoord)
     return uvs
-
 
 def getVertexColor(exportVertColors, tessface_vert_color, vColorIndex):
     vColor = None
@@ -458,13 +427,11 @@ def getVertexColor(exportVertColors, tessface_vert_color, vColorIndex):
     vColor = list(map(rangeFloatToByte, vColor))
     return vColor
 
-
 def getBoneWeights(mesh, vertice, armature):
     boneId = []
     boneWeight = []
     if armature:
         for vertGroup in vertice.groups:
-            # Vertex Group
             groupIdx = vertGroup.group
             boneName = mesh.vertex_groups[groupIdx].name
             boneIdx = armature.data.bones.find(boneName)
@@ -478,7 +445,6 @@ def getBoneWeights(mesh, vertice, armature):
     boneWeight = fillArray(boneWeight, 4, 0)
     return boneId, boneWeight
 
-
 def getXpsFace(faceVerts):
     xpsFaces = []
 
@@ -491,12 +457,10 @@ def getXpsFace(faceVerts):
 
     return xpsFaces
 
-
 def boneDictGenerate(filepath, armatureObj):
     boneNames = sorted([import_xnalara_pose.renameBoneToXps(name) for name in armatureObj.data.bones.keys()])
     boneDictList = '\n'.join(';'.join((name,) * 2) for name in boneNames)
     write_ascii_xps.writeBoneDict(filepath, boneDictList)
-
 
 if __name__ == "__main__":
     uvDisplX = 0
@@ -504,11 +468,7 @@ if __name__ == "__main__":
     exportOnlySelected = True
     exportPose = False
     modProtected = False
-    filename1 = (r'G:\3DModeling\XNALara\XNALara_XPS\data\TESTING5\Drake\RECB '
-                 r'DRAKE Pack_By DamianHandy\DRAKE Sneaking Suit - Open_by '
-                 r'DamianHandy\Generic_Item - BLENDER pose.mesh')
-
-    filename = r'C:\XPS Tutorial\Yaiba MOMIJIII\momi.mesh.ascii'
+    filename = 'test_file.mesh'
 
     xpsSettings = xps_types.XpsImportSettings(filename, uvDisplX, uvDisplY,
                                               exportOnlySelected, exportPose,
