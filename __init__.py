@@ -4,13 +4,11 @@
 
 bl_info = {
     "name": "XNALara/XPS Import/Export",
-    "author": "johnzero7",
-    "version": (2, 1, 0),
-    "blender": (4, 4, 0),
+    "author": "maylog, johnzero7",
+    "version": (2, 2, 0),
+    "blender": (5, 0, 0),
     "location": "File > Import-Export > XNALara/XPS",
     "description": "Import-Export XNALara/XPS",
-    "warning": "",
-    "wiki_url":    "https://github.com/johnzero7/xps_tools",
     "tracker_url": "https://github.com/johnzero7/xps_tools/issues",
     "category": "Import-Export",
 }
