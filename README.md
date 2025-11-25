@@ -7,6 +7,7 @@ With Blender 4.40 released there where many changes.
 From v2.1.0 of this addon will only work with Blender 4.4.
 For Blender 2.79 download v1.8.7
 
+- Blender 5.00 ==> v2.2.0
 - Blender 4.40 ==> v2.1.0
 - Blender 2.80 ==> v2.0.0
 - Blender 2.79 ==> v1.8.7
