@@ -39,8 +39,8 @@ NORMAL_MAP_NODE = 'ShaderNodeNormalMap'
 # Nodes Convert
 SHADER_NODE_MATH = 'ShaderNodeMath'
 RGB_TO_BW_NODE = 'ShaderNodeRGBToBW'
-SHADER_NODE_SEPARATE_RGB = 'ShaderNodeSeparateRGB'
-SHADER_NODE_COMBINE_RGB = 'ShaderNodeCombineRGB'
+SHADER_NODE_SEPARATE_COLOR = 'ShaderNodeSeparateColor'
+SHADER_NODE_COMBINE_COLOR = 'ShaderNodeCombineColor'
 
 # Node Groups
 NODE_GROUP = 'ShaderNodeGroup'
@@ -67,6 +67,43 @@ SPECULAR_COLOR = (0.707, 0.707, 0.707, 1)
 LIGHTMAP_COLOR = (1, 1, 1, 1)
 NORMAL_COLOR = (0.5, 0.5, 1, 1)
 GREY_COLOR = (0.5, 0.5, 0.5, 1)
+
+
+if bpy.app.version < (4, 0):
+    def new_input_socket(node_tree, socket_type, socket_name):
+        return node_tree.inputs.new(socket_type, socket_name)
+
+    def new_output_socket(node_tree, socket_type, socket_name):
+        return node_tree.outputs.new(socket_type, socket_name)
+
+    def clear_sockets(node_tree):
+        node_tree.inputs.clear()
+        node_tree.outputs.clear()
+else:
+    # Blender 4.0 moved NodeTree inputs and outputs into a combined interface.
+    # Additionally, only base socket types can be created directly. Subtypes must be set explicitly after socket
+    # creation.
+    NODE_SOCKET_SUBTYPES = {
+        # There are a lot more, but this is the only one in use currently.
+        NODE_SOCKET_FLOAT_FACTOR: ('FACTOR', NODE_SOCKET_FLOAT),
+    }
+
+    def _new_socket(node_tree, socket_type, socket_name, in_out):
+        subtype, base_type = NODE_SOCKET_SUBTYPES.get(socket_type, (None, None))
+        new_socket = node_tree.interface.new_socket(socket_name, in_out=in_out,
+                                                    socket_type=base_type if base_type else socket_type)
+        if subtype:
+            new_socket.subtype = subtype
+        return new_socket
+
+    def new_input_socket(node_tree, socket_type, socket_name):
+        return _new_socket(node_tree, socket_type, socket_name, 'INPUT')
+
+    def new_output_socket(node_tree, socket_type, socket_name):
+        return _new_socket(node_tree, socket_type, socket_name, 'OUTPUT')
+
+    def clear_sockets(node_tree):
+        node_tree.interface.clear()
 
 
 def makeMaterialOutputNode(node_tree):
@@ -189,13 +226,6 @@ def makeNodesMaterial(xpsSettings, materialData, rootDir, mesh_da, meshInfo, fla
 
     node_tree.links.new(xpsShadeNode.outputs['Shader'], ouputNode.inputs['Surface'])
 
-    bump1Image = None
-    bump2Image = None
-    maskGroupNode = None
-    normalMixNode = None
-    diffuseImgNode = None
-    normalMapNode = None
-
     col_width = 200
     imagesPosX = -col_width * 6
     imagesPosY = 400
@@ -226,7 +256,6 @@ def makeNodesMaterial(xpsSettings, materialData, rootDir, mesh_da, meshInfo, fla
             node_tree.links.new(imageNode.outputs['Color'], xpsShadeNode.inputs['Diffuse'])
             imageNode.location = xpsShadeNode.location + Vector((imagesPosX, imagesPosY * 1))
             mappingCoordNode.location = imageNode.location + Vector((-400, 0))
-            diffuseImgNode = imageNode
             if useAlpha:
                 node_tree.links.new(imageNode.outputs['Alpha'], xpsShadeNode.inputs['Alpha'])
         elif (texType == xps_material.TextureType.LIGHT):
@@ -309,13 +338,17 @@ def mix_normal_group():
     node_tree = bpy.data.node_groups.new(name=MIX_NORMAL_NODE, type=SHADER_NODE_TREE)
     node_tree.nodes.clear()
 
-    mainNormalSeparateNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_RGB)
+    mainNormalSeparateNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_COLOR)
+    mainNormalSeparateNode.mode = 'RGB'
     mainNormalSeparateNode.location = Vector((0, 0))
-    detailNormalSeparateNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_RGB)
+    detailNormalSeparateNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_COLOR)
+    detailNormalSeparateNode.mode = 'RGB'
     detailNormalSeparateNode.location = mainNormalSeparateNode.location + Vector((0, -200))
-    mainNormalCombineNode = node_tree.nodes.new(SHADER_NODE_COMBINE_RGB)
+    mainNormalCombineNode = node_tree.nodes.new(SHADER_NODE_COMBINE_COLOR)
+    mainNormalCombineNode.mode = 'RGB'
     mainNormalCombineNode.location = mainNormalSeparateNode.location + Vector((200, 0))
-    detailNormalCombineNode = node_tree.nodes.new(SHADER_NODE_COMBINE_RGB)
+    detailNormalCombineNode = node_tree.nodes.new(SHADER_NODE_COMBINE_COLOR)
+    detailNormalCombineNode.mode = 'RGB'
     detailNormalCombineNode.location = mainNormalSeparateNode.location + Vector((200, -200))
 
     multiplyBlueNode = node_tree.nodes.new(SHADER_NODE_MATH)
@@ -333,9 +366,11 @@ def mix_normal_group():
     subsRGBNode.inputs['Fac'].default_value = 1
     subsRGBNode.location = mainNormalSeparateNode.location + Vector((600, -100))
 
-    separateRedBlueNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_RGB)
+    separateRedBlueNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_COLOR)
+    separateRedBlueNode.mode = 'RGB'
     separateRedBlueNode.location = mainNormalSeparateNode.location + Vector((800, -100))
-    combineFinalNode = node_tree.nodes.new(SHADER_NODE_COMBINE_RGB)
+    combineFinalNode = node_tree.nodes.new(SHADER_NODE_COMBINE_COLOR)
+    combineFinalNode.mode = 'RGB'
     combineFinalNode.location = mainNormalSeparateNode.location + Vector((1000, -200))
 
     # Input/Output
@@ -343,41 +378,41 @@ def mix_normal_group():
     group_inputs.location = mainNormalSeparateNode.location + Vector((-200, -100))
     group_outputs = node_tree.nodes.new(NODE_GROUP_OUTPUT)
     group_outputs.location = mainNormalSeparateNode.location + Vector((1200, -100))
-    node_tree.inputs.clear()
-    node_tree.outputs.clear()
+    clear_sockets(node_tree)
 
     # Input Sockets
-    main_normal_socket = node_tree.inputs.new(NODE_SOCKET_COLOR, 'Main')
+    main_normal_socket = new_input_socket(node_tree, NODE_SOCKET_COLOR, 'Main')
     main_normal_socket.default_value = NORMAL_COLOR
-    detail_normal_socket = node_tree.inputs.new(NODE_SOCKET_COLOR, 'Detail')
+    detail_normal_socket = new_input_socket(node_tree, NODE_SOCKET_COLOR, 'Detail')
     detail_normal_socket.default_value = NORMAL_COLOR
 
     # Output Sockets
-    output_value = node_tree.outputs.new(NODE_SOCKET_COLOR, 'Color')
+    output_value = new_output_socket(node_tree, NODE_SOCKET_COLOR, 'Color')
 
     # Links Input
     links = node_tree.links
-    links.new(group_inputs.outputs['Main'], mainNormalSeparateNode.inputs['Image'])
-    links.new(group_inputs.outputs['Detail'], detailNormalSeparateNode.inputs['Image'])
+    links.new(group_inputs.outputs['Main'], mainNormalSeparateNode.inputs['Color'])
+    links.new(group_inputs.outputs['Detail'], detailNormalSeparateNode.inputs['Color'])
 
-    links.new(mainNormalSeparateNode.outputs['R'], mainNormalCombineNode.inputs['R'])
-    links.new(mainNormalSeparateNode.outputs['G'], mainNormalCombineNode.inputs['G'])
-    links.new(mainNormalSeparateNode.outputs['B'], multiplyBlueNode.inputs[0])
-    links.new(detailNormalSeparateNode.outputs['R'], detailNormalCombineNode.inputs['R'])
-    links.new(detailNormalSeparateNode.outputs['G'], detailNormalCombineNode.inputs['G'])
-    links.new(detailNormalSeparateNode.outputs['B'], multiplyBlueNode.inputs[1])
+    # 使用索引连接: 0=R, 1=G, 2=B
+    links.new(mainNormalSeparateNode.outputs[0], mainNormalCombineNode.inputs[0])  # R
+    links.new(mainNormalSeparateNode.outputs[1], mainNormalCombineNode.inputs[1])  # G
+    links.new(mainNormalSeparateNode.outputs[2], multiplyBlueNode.inputs[0])  # B
+    links.new(detailNormalSeparateNode.outputs[0], detailNormalCombineNode.inputs[0])  # R
+    links.new(detailNormalSeparateNode.outputs[1], detailNormalCombineNode.inputs[1])  # G
+    links.new(detailNormalSeparateNode.outputs[2], multiplyBlueNode.inputs[1])  # B
 
-    links.new(mainNormalCombineNode.outputs['Image'], addRGBNode.inputs[1])
-    links.new(detailNormalCombineNode.outputs['Image'], addRGBNode.inputs[2])
+    links.new(mainNormalCombineNode.outputs['Color'], addRGBNode.inputs[1])
+    links.new(detailNormalCombineNode.outputs['Color'], addRGBNode.inputs[2])
     links.new(addRGBNode.outputs['Color'], subsRGBNode.inputs[1])
 
-    links.new(subsRGBNode.outputs['Color'], separateRedBlueNode.inputs['Image'])
+    links.new(subsRGBNode.outputs['Color'], separateRedBlueNode.inputs['Color'])
 
-    links.new(separateRedBlueNode.outputs['R'], combineFinalNode.inputs['R'])
-    links.new(separateRedBlueNode.outputs['G'], combineFinalNode.inputs['G'])
-    links.new(multiplyBlueNode.outputs['Value'], combineFinalNode.inputs['B'])
+    links.new(separateRedBlueNode.outputs[0], combineFinalNode.inputs[0])  # R
+    links.new(separateRedBlueNode.outputs[1], combineFinalNode.inputs[1])  # G
+    links.new(multiplyBlueNode.outputs['Value'], combineFinalNode.inputs[2])  # B
 
-    links.new(combineFinalNode.outputs['Image'], group_outputs.inputs['Color'])
+    links.new(combineFinalNode.outputs['Color'], group_outputs.inputs['Color'])
 
     return node_tree
 
@@ -389,7 +424,8 @@ def invert_channel_group():
     node_tree = bpy.data.node_groups.new(name=INVERT_CHANNEL_NODE, type=SHADER_NODE_TREE)
     node_tree.nodes.clear()
 
-    separateRgbNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_RGB)
+    separateRgbNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_COLOR)
+    separateRgbNode.mode = 'RGB'
     separateRgbNode.location = Vector((0, 0))
 
     invertRNode = node_tree.nodes.new(INVERT_NODE)
@@ -402,7 +438,8 @@ def invert_channel_group():
     invertBNode.inputs[0].default_value = 0
     invertBNode.location = separateRgbNode.location + Vector((200, -160))
 
-    combineRgbNode = node_tree.nodes.new(SHADER_NODE_COMBINE_RGB)
+    combineRgbNode = node_tree.nodes.new(SHADER_NODE_COMBINE_COLOR)
+    combineRgbNode.mode = 'RGB'
     combineRgbNode.location = separateRgbNode.location + Vector((600, 0))
 
     # Input/Output
@@ -410,42 +447,43 @@ def invert_channel_group():
     group_inputs.location = separateRgbNode.location + Vector((-200, -100))
     group_outputs = node_tree.nodes.new(NODE_GROUP_OUTPUT)
     group_outputs.location = combineRgbNode.location + Vector((200, 0))
-    node_tree.inputs.clear()
-    node_tree.outputs.clear()
+    clear_sockets(node_tree)
 
     # Input/Output Sockets
-    input_color = node_tree.inputs.new(NODE_SOCKET_COLOR, 'Color')
+    input_color = new_input_socket(node_tree, NODE_SOCKET_COLOR, 'Color')
     input_color.default_value = GREY_COLOR
-    invert_r = node_tree.inputs.new(NODE_SOCKET_FLOAT_FACTOR, 'R')
+    invert_r = new_input_socket(node_tree, NODE_SOCKET_FLOAT_FACTOR, 'R')
     invert_r.default_value = 0
     invert_r.min_value = 0
     invert_r.max_value = 1
-    invert_g = node_tree.inputs.new(NODE_SOCKET_FLOAT_FACTOR, 'G')
+    invert_g = new_input_socket(node_tree, NODE_SOCKET_FLOAT_FACTOR, 'G')
     invert_g.default_value = 0
     invert_g.min_value = 0
     invert_g.max_value = 1
-    invert_b = node_tree.inputs.new(NODE_SOCKET_FLOAT_FACTOR, 'B')
+    invert_b = new_input_socket(node_tree, NODE_SOCKET_FLOAT_FACTOR, 'B')
     invert_b.default_value = 0
     invert_b.min_value = 0
     invert_b.max_value = 1
 
-    output_value = node_tree.outputs.new(NODE_SOCKET_COLOR, 'Color')
+    output_value = new_output_socket(node_tree, NODE_SOCKET_COLOR, 'Color')
 
     # Links Input
     links = node_tree.links
-    links.new(group_inputs.outputs['Color'], separateRgbNode.inputs['Image'])
+    links.new(group_inputs.outputs['Color'], separateRgbNode.inputs['Color'])
     links.new(group_inputs.outputs['R'], invertRNode.inputs['Fac'])
     links.new(group_inputs.outputs['G'], invertGNode.inputs['Fac'])
     links.new(group_inputs.outputs['B'], invertBNode.inputs['Fac'])
-    links.new(separateRgbNode.outputs['R'], invertRNode.inputs['Color'])
-    links.new(separateRgbNode.outputs['G'], invertGNode.inputs['Color'])
-    links.new(separateRgbNode.outputs['B'], invertBNode.inputs['Color'])
+    
+    # 使用索引连接: 0=R, 1=G, 2=B
+    links.new(separateRgbNode.outputs[0], invertRNode.inputs['Color'])  # R
+    links.new(separateRgbNode.outputs[1], invertGNode.inputs['Color'])  # G
+    links.new(separateRgbNode.outputs[2], invertBNode.inputs['Color'])  # B
 
-    links.new(invertRNode.outputs['Color'], combineRgbNode.inputs['R'])
-    links.new(invertGNode.outputs['Color'], combineRgbNode.inputs['G'])
-    links.new(invertBNode.outputs['Color'], combineRgbNode.inputs['B'])
+    links.new(invertRNode.outputs['Color'], combineRgbNode.inputs[0])  # R
+    links.new(invertGNode.outputs['Color'], combineRgbNode.inputs[1])  # G
+    links.new(invertBNode.outputs['Color'], combineRgbNode.inputs[2])  # B
 
-    links.new(combineRgbNode.outputs['Image'], group_outputs.inputs['Color'])
+    links.new(combineRgbNode.outputs['Color'], group_outputs.inputs['Color'])
 
     return node_tree
 
@@ -457,7 +495,8 @@ def normal_mask_group():
     node_tree = bpy.data.node_groups.new(name=NORMAL_MASK_NODE, type=SHADER_NODE_TREE)
     node_tree.nodes.clear()
 
-    maskSeparateNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_RGB)
+    maskSeparateNode = node_tree.nodes.new(SHADER_NODE_SEPARATE_COLOR)
+    maskSeparateNode.mode = 'RGB'
 
     # Mask Red Channel
     maskRedPowerNode = node_tree.nodes.new(SHADER_NODE_MATH)
@@ -485,8 +524,8 @@ def normal_mask_group():
     normalMixNode = getNodeGroup(node_tree, MIX_NORMAL_NODE)
     normalMixNode.location = maskSeparateNode.location + Vector((600, 0))
 
-    node_tree.links.new(maskSeparateNode.outputs['R'], maskRedPowerNode.inputs[0])
-    node_tree.links.new(maskSeparateNode.outputs['G'], maskGreenPowerNode.inputs[0])
+    node_tree.links.new(maskSeparateNode.outputs[0], maskRedPowerNode.inputs[0])  # R
+    node_tree.links.new(maskSeparateNode.outputs[1], maskGreenPowerNode.inputs[0])  # G
     node_tree.links.new(maskRedPowerNode.outputs['Value'], maskMixRedNode.inputs[0])
     node_tree.links.new(maskGreenPowerNode.outputs['Value'], maskMixGreenNode.inputs[0])
     node_tree.links.new(maskMixRedNode.outputs['Color'], normalMixNode.inputs['Main'])
@@ -497,21 +536,20 @@ def normal_mask_group():
     group_inputs.location = maskSeparateNode.location + Vector((-200, -100))
     group_outputs = node_tree.nodes.new(NODE_GROUP_OUTPUT)
     group_outputs.location = normalMixNode.location + Vector((200, 0))
-    node_tree.inputs.clear()
-    node_tree.outputs.clear()
+    clear_sockets(node_tree)
 
     # Input/Output Sockets
-    mask_color = node_tree.inputs.new(NODE_SOCKET_COLOR, 'Mask')
+    mask_color = new_input_socket(node_tree, NODE_SOCKET_COLOR, 'Mask')
     mask_color.default_value = LIGHTMAP_COLOR
-    normalMain_color = node_tree.inputs.new(NODE_SOCKET_COLOR, 'Normal1')
+    normalMain_color = new_input_socket(node_tree, NODE_SOCKET_COLOR, 'Normal1')
     normalMain_color.default_value = NORMAL_COLOR
-    normalDetail_color = node_tree.inputs.new(NODE_SOCKET_COLOR, 'Normal2')
+    normalDetail_color = new_input_socket(node_tree, NODE_SOCKET_COLOR, 'Normal2')
     normalDetail_color.default_value = NORMAL_COLOR
 
-    output_value = node_tree.outputs.new(NODE_SOCKET_COLOR, 'Normal')
+    output_value = new_output_socket(node_tree, NODE_SOCKET_COLOR, 'Normal')
 
     # Link Inputs/Output
-    node_tree.links.new(group_inputs.outputs['Mask'], maskSeparateNode.inputs['Image'])
+    node_tree.links.new(group_inputs.outputs['Mask'], maskSeparateNode.inputs['Color'])
     node_tree.links.new(group_inputs.outputs['Normal1'], maskMixRedNode.inputs[2])
     node_tree.links.new(group_inputs.outputs['Normal2'], maskMixGreenNode.inputs[2])
     node_tree.links.new(normalMixNode.outputs['Color'], group_outputs.inputs['Normal'])
@@ -537,28 +575,28 @@ def xps_shader_group():
     group_output = shader.nodes.new(NODE_GROUP_OUTPUT)
     group_output.location += Vector((600, 0))
 
-    output_diffuse = shader.inputs.new(NODE_SOCKET_COLOR, 'Diffuse')
+    output_diffuse = new_input_socket(shader, NODE_SOCKET_COLOR, 'Diffuse')
     output_diffuse.default_value = (DIFFUSE_COLOR)
-    output_lightmap = shader.inputs.new(NODE_SOCKET_COLOR, 'Lightmap')
+    output_lightmap = new_input_socket(shader, NODE_SOCKET_COLOR, 'Lightmap')
     output_lightmap.default_value = (LIGHTMAP_COLOR)
-    output_specular = shader.inputs.new(NODE_SOCKET_COLOR, 'Specular')
+    output_specular = new_input_socket(shader, NODE_SOCKET_COLOR, 'Specular')
     output_specular.default_value = (SPECULAR_COLOR)
-    output_emission = shader.inputs.new(NODE_SOCKET_COLOR, 'Emission')
-    output_normal = shader.inputs.new(NODE_SOCKET_COLOR, 'Bump Map')
+    output_emission = new_input_socket(shader, NODE_SOCKET_COLOR, 'Emission')
+    output_normal = new_input_socket(shader, NODE_SOCKET_COLOR, 'Bump Map')
     output_normal.default_value = (NORMAL_COLOR)
-    output_bump_mask = shader.inputs.new(NODE_SOCKET_COLOR, 'Bump Mask')
-    output_microbump1 = shader.inputs.new(NODE_SOCKET_COLOR, 'MicroBump 1')
+    output_bump_mask = new_input_socket(shader, NODE_SOCKET_COLOR, 'Bump Mask')
+    output_microbump1 = new_input_socket(shader, NODE_SOCKET_COLOR, 'MicroBump 1')
     output_microbump1.default_value = (NORMAL_COLOR)
-    output_microbump2 = shader.inputs.new(NODE_SOCKET_COLOR, 'MicroBump 2')
+    output_microbump2 = new_input_socket(shader, NODE_SOCKET_COLOR, 'MicroBump 2')
     output_microbump2.default_value = (NORMAL_COLOR)
-    output_environment = shader.inputs.new(NODE_SOCKET_COLOR, 'Environment')
-    output_alpha = shader.inputs.new(NODE_SOCKET_FLOAT_FACTOR, 'Alpha')
+    output_environment = new_input_socket(shader, NODE_SOCKET_COLOR, 'Environment')
+    output_alpha = new_input_socket(shader, NODE_SOCKET_FLOAT_FACTOR, 'Alpha')
     output_alpha.min_value = 0
     output_alpha.max_value = 1
     output_alpha.default_value = 1
 
     # Group outputs
-    shader.outputs.new(NODE_SOCKET_SHADER, 'Shader')
+    new_output_socket(shader, NODE_SOCKET_SHADER, 'Shader')
 
     principled = shader.nodes.new(PRINCIPLED_SHADER_NODE)
 
@@ -589,7 +627,8 @@ def xps_shader_group():
 
     # Alpha & Emission
     shader.links.new(group_input.outputs['Alpha'], principled.inputs['Alpha'])
-    shader.links.new(group_input.outputs['Emission'], principled.inputs['Emission'])
+    emission_input_name = 'Emission' if bpy.app.version < (4, 0) else 'Emission Color'
+    shader.links.new(group_input.outputs['Emission'], principled.inputs[emission_input_name])
 
     # Normals
     normal_invert_channel = getNodeGroup(shader, INVERT_CHANNEL_NODE)
