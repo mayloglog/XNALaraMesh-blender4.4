@@ -2,6 +2,12 @@ XPS Tools
 =========
 Blender an addon to Export/Import Haydee assets.
 
+Fork of XNALara Mesh import/export tool with Blender 5.0 compatibility.
+
+This is a maintained fork as the original author was unresponsive to Blender's review process.
+
+Original addon by XNALara community.
+
 With Blender 4.40 released there where many changes.
 
 From v2.1.0 of this addon will only work with Blender 4.4.
