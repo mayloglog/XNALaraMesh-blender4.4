@@ -559,9 +559,3 @@ def scaleTex(textureSlot, texScale):
     textureSlot.scale = (texScale, texScale, 1)
     offset = texScaleOffset(texScale)
     textureSlot.offset = (offset, -offset, 1)
-
-if __name__ == "__main__":
-    rt = RenderType()
-    xx = RenderGroup(rt)
-    print(xx.__dict__)
-    print(xx.rgTexType)

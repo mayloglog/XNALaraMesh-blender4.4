@@ -358,13 +358,3 @@ def readBoneDict(filename):
     except Exception as e:
         print(f"Error reading bone dictionary {filename}: {e}")
         return {}, {}
-
-
-if __name__ == "__main__":
-    readModelfilename = r'G:\3DModeling\XNALara\XNALara_XPS\data\TESTING2\Tekken\Tekken - Lili Bride\generic_item.mesh.ascii'
-    readPosefilename = r'G:\3DModeling\XNALara\XNALara_XPS\data\TESTING2\Tekken\Tekken - Lili Bride\Lili 1.pose'
-
-    print('----READ START----')
-    xpsData = readXpsModel(readModelfilename)
-    xpsData = readXpsPose(readPosefilename)
-    print('----READ END----')

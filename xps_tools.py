@@ -967,7 +967,3 @@ def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     unregisterCustomIcon()
-
-
-if __name__ == "__main__":
-    register()

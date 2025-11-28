@@ -495,13 +495,6 @@ def boneDictGenerate(filepath, armatureObj):
     boneDictList = '\n'.join(';'.join((name,) * 2) for name in boneNames)
     write_ascii_xps.writeBoneDict(filepath, boneDictList)
 
-if __name__ == "__main__":
-    uvDisplX = 0
-    uvDisplY = 0
-    exportOnlySelected = True
-    exportPose = False
-    modProtected = False
-    filename = 'test_file.mesh'
 
     xpsSettings = xps_types.XpsImportSettings(filename, uvDisplX, uvDisplY,
                                               exportOnlySelected, exportPose,

@@ -154,19 +154,3 @@ def writeXpsModel(xpsSettings, filename, xpsData):
     ioStream.write(writeMeshes(xpsSettings, xpsData.meshes).read())
     ioStream.seek(0)
     writeIoStream(filename, ioStream)
-
-
-if __name__ == "__main__":
-    readfilename = r'G:\3DModeling\XNALara\XNALara_XPS\data\TESTING\Alice Returns - Mods\Alice 001 Fetish Cat\generic_item2.mesh.ascii'
-    writefilename = r'G:\3DModeling\XNALara\XNALara_XPS\data\TESTING\Alice Returns - Mods\Alice 001 Fetish Cat\generic_item3.mesh.ascii'
-
-    # Simulate XPS Data
-    # from . import mock_xps_data
-    # xpsData = mock_xps_data.mockData()
-
-    # import XPS File
-    xpsData = read_ascii_xps.readXpsModel(readfilename)
-
-    print('----WRITE START----')
-    writeXpsModel(writefilename, xpsData)
-    print('----WRITE END----')

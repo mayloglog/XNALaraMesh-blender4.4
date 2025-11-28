@@ -505,11 +505,3 @@ def readDefaultPose(file, poseLenghtUnround, poseBones):
     except Exception as e:
         print(f"Error reading default pose: {e}")
         return None
-
-
-if __name__ == "__main__":
-    readfilename = r'G:\3DModeling\XNALara\XNALara_XPS\Young Samus\Generic_Item.mesh'
-
-    print('----READ START----')
-    xpsData = readXpsModel(readfilename)
-    print('----READ END----')

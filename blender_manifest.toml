@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 id = "io_xnalara"
 name = "XPS Import/Export"
-version = "2.2.1" 
+version = "2.2.2" 
 tagline = "Import-Export for XNALara/XPS files"
 maintainer = "maylog"
 type = "add-on"
@@ -23,7 +23,8 @@ Note: This is a community-maintained version with Blender 5.0+ compatibility.
 """
 
 credits = [
-    "Original XNALaraMesh authors",
-    "johnzero7 - Original addon development", 
-    "XNALara/XPS community"
+    "2025 johnzero7 – original XNALaraMesh developer",
+    "2025 Clothoid & original XPS Tools contributors",
+    "2025 XNALara/XPS community",
+    "2025 maylog – current maintainer, Blender 5.0+ update & Extensions submission"
 ]

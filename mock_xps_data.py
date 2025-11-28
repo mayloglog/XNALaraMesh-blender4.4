@@ -198,9 +198,3 @@ def buildMeshes():
     meshes.append(xpsMesh)
 
     return meshes
-
-
-if __name__ == "__main__":
-    print('BUILD')
-    xx = mockData()
-    print('FINISH')
