@@ -1,24 +1,19 @@
 import math
-
 from . import ascii_ops
 from enum import Enum
 
-
-# All available texture types:
 class TextureType(Enum):
-    DIFFUSE = 'diffuse'                     # 1
-    LIGHT = 'lightmap'                      # 2
-    BUMP = 'bump'                           # 3
-    MASK = 'mask'                           # 4
-    BUMP1 = 'bump1'                         # 5
-    BUMP2 = 'bump2'                         # 6
-    SPECULAR = 'specular'                   # 7
-    ENVIRONMENT = 'environment'             # 8
-    EMISSION = 'emission'                   # 9
-
+    DIFFUSE = 'diffuse'
+    LIGHT = 'lightmap'
+    BUMP = 'bump'
+    MASK = 'mask'
+    BUMP1 = 'bump1'
+    BUMP2 = 'bump2'
+    SPECULAR = 'specular'
+    ENVIRONMENT = 'environment'
+    EMISSION = 'emission'
 
 class RenderType():
-
     def __init__(self):
         self.renderGroupNum = None
         self.meshName = None
@@ -27,9 +22,7 @@ class RenderType():
         self.texRepeater2 = None
         self.val4 = None
 
-
 class RenderGroup:
-
     def __init__(self, renderType):
         self.renderType = renderType
         self.renderGroupNum = renderType.renderGroupNum
@@ -495,11 +488,9 @@ class RenderGroup:
             self.rgTexCount = 3
             self.rgTexType = [TextureType.DIFFUSE, TextureType.BUMP, TextureType.SPECULAR]
 
-
 def makeRenderType(meshFullName):
     mat = meshFullName.split("_")
     maxLen = 8
-    # Complete the array with None
     mat = mat + [None] * (maxLen - len(mat))
 
     renderType = RenderType()
@@ -511,10 +502,6 @@ def makeRenderType(meshFullName):
     texRepeater2 = 0
 
     renderGroupFloat = ascii_ops.getFloat(mat[0])
-    # meshName = mat[1]
-    # specularityFloat = ascii_ops.getFloat(mat[2])
-    # texRepeater1Float = ascii_ops.getFloat(mat[3])
-    # texRepeater2Float = ascii_ops.getFloat(mat[4])
 
     if math.isnan(renderGroupFloat):
         meshName = mat[0]
@@ -545,7 +532,6 @@ def makeRenderType(meshFullName):
 
     return renderType
 
-
 def makeRenderTypeName(renderType):
     nameList = []
 
@@ -565,17 +551,14 @@ def makeRenderTypeName(renderType):
     name = "_".join(nameList)
     return name
 
-
 def texScaleOffset(scale):
     offset = (scale / 2.0) - ((int(scale) - 1) // 2) - .5
     return offset
-
 
 def scaleTex(textureSlot, texScale):
     textureSlot.scale = (texScale, texScale, 1)
     offset = texScaleOffset(texScale)
     textureSlot.offset = (offset, -offset, 1)
-
 
 if __name__ == "__main__":
     rt = RenderType()

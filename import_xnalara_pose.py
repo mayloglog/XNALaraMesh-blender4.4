@@ -13,6 +13,9 @@ LEFT_BLENDER_SUFFIX = r'.L'
 RIGHT_XPS_SUFFIX = r'right'
 LEFT_XPS_SUFFIX = r'left'
 
+xpsData = None
+rootDir = ''
+
 def changeBoneNameToBlender(boneName, xpsSuffix, blenderSuffix):
     newName = re.sub(xpsSuffix, PLACE_HOLDER, boneName, flags=re.I)
     newName = re.sub(r'\s+', ' ', newName)
@@ -94,8 +97,7 @@ def loadXpsFile(filename):
 
 @timing
 def xpsImport(filename):
-    global rootDir
-    global xpsData
+    global rootDir, xpsData
 
     print("------------------------------------------------------------")
     print("----------- EXECUTING XPS POSE IMPORTER -------------------")
@@ -151,6 +153,7 @@ def insert_keyframes_for_pose(armature):
     current_frame = scene.frame_current
     
     for pose_bone in armature.pose.bones:
+        # Fix: Use length_squared for location comparison
         if pose_bone.location.length_squared > 0.0001:
             pose_bone.keyframe_insert(data_path="location", frame=current_frame)
         
@@ -160,9 +163,18 @@ def insert_keyframes_for_pose(armature):
             if diff_quat.angle > 0.0001:
                 pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=current_frame)
         else:
-            if pose_bone.rotation_euler.length > 0.0001:
+            # Fix: Use proper Euler angle comparison
+            default_euler = Euler((0, 0, 0))
+            current_euler = pose_bone.rotation_euler
+            diff_euler = Vector((
+                abs(current_euler.x - default_euler.x),
+                abs(current_euler.y - default_euler.y), 
+                abs(current_euler.z - default_euler.z)
+            ))
+            if diff_euler.length > 0.0001:
                 pose_bone.keyframe_insert(data_path="rotation_euler", frame=current_frame)
         
+        # Fix: Use proper scale comparison
         scale_diff = (pose_bone.scale - Vector((1, 1, 1))).length
         if scale_diff > 0.0001:
             pose_bone.keyframe_insert(data_path="scale", frame=current_frame)

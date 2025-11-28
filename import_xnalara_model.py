@@ -14,6 +14,8 @@ from mathutils import Vector
 rootDir = ''
 blenderBoneNames = []
 MIN_BONE_LENGHT = 0.005
+xpsData = None
+xpsSettings = None
 
 def newBoneName():
     global blenderBoneNames
@@ -38,7 +40,7 @@ def faceTransform(face):
     return [face[0], face[2], face[1]]
 
 def faceTransformList(faces):
-    return map(faceTransform, faces)
+    return list(map(faceTransform, faces))
 
 def uvTransform(uv):
     u = uv[0] + xpsSettings.uvDisplX
@@ -55,8 +57,9 @@ def uvTransformLayers(uvLayers):
     return list(map(uvTransform, uvLayers))
 
 def getInputFilename(xpsSettingsAux):
-    global xpsSettings
+    global xpsSettings, xpsData
     xpsSettings = xpsSettingsAux
+    xpsData = None
 
     blenderImportSetup()
     status = xpsImport()
@@ -97,8 +100,7 @@ def linkToCollection(collection, obj):
     collection.objects.link(obj)
 
 def xpsImport():
-    global rootDir
-    global xpsData
+    global rootDir, xpsData
 
     print("------------------------------------------------------------")
     print("---------------Executing XPS Python Importer----------------")
@@ -309,14 +311,19 @@ def boneTailMiddle(editBones, connectBones):
                 childBones = [childBone for childBone in bone.children if not re.search(twistboneRegex, childBone.name)]
 
             if childBones:
-                bone.tail = Vector(map(sum, zip(*(childBone.head.xyz for childBone in childBones)))) / len(childBones)
+                # Fix: Convert to list and calculate average
+                child_heads = [childBone.head for childBone in childBones]
+                avg_x = sum(head.x for head in child_heads) / len(child_heads)
+                avg_y = sum(head.y for head in child_heads) / len(child_heads)
+                avg_z = sum(head.z for head in child_heads) / len(child_heads)
+                bone.tail = Vector((avg_x, avg_y, avg_z))
             else:
                 if bone.parent is not None:
-                    if bone.head.xyz != bone.parent.tail.xyz:
-                        delta = bone.head.xyz - bone.parent.tail.xyz
+                    if bone.head != bone.parent.tail:
+                        delta = bone.head - bone.parent.tail
                     else:
-                        delta = bone.parent.tail.xyz - bone.parent.head.xyz
-                    bone.tail = bone.head.xyz + delta
+                        delta = bone.parent.tail - bone.parent.head
+                    bone.tail = bone.head + delta
 
     for bone in editBones:
         setMinimumLenght(bone)
@@ -614,6 +621,7 @@ def makeBoneGroups(armature_ob, mesh_ob):
         custom_colors.normal = bone_pose_surface_color
         custom_colors.select = bone_pose_color
         custom_colors.active = bone_pose_active_color
+
 def testImport():
     test_settings = xps_types.XpsImportSettings(
         filename="test_file.mesh",
@@ -629,6 +637,3 @@ def testImport():
         importNormals=True
     )
     return getInputFilename(test_settings)
-
-if __name__ == "__main__":
-    testImport()

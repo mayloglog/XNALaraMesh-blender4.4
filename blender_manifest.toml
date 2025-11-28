@@ -1,16 +1,29 @@
 schema_version = "1.0.0"
-
 id = "io_xnalara"
-version = "2.2.0" 
-name = "io-XNALara-Tools"
+name = "XPS Import/Export"
+version = "2.2.1" 
 tagline = "Import-Export for XNALara/XPS files"
 maintainer = "maylog"
 type = "add-on"
-
-website = "https://github.com/mayloglog/XNALaraMesh-blender4.4"
-
 tags = ["Import-Export", "Pipeline"]
-
 blender_version_min = "5.0.0"
-
 license = ['SPDX:GPL-3.0-or-later']
+website = "https://github.com/mayloglog/XNALaraMesh-blender4.4"
+source_repository = "https://github.com/johnzero7/XNALaraMesh"
+description = """
+FORKED VERSION: This is a maintained fork of the original XNALaraMesh addon.
+Import and export XPS (XNALara/XPS) model files (.mesh, .xps) and pose data.
+Supports meshes, armatures, materials, textures, and animation.
+Features:
+• Import XPS models with bones and materials
+• Export models to XPS format
+• Pose import/export functionality
+• Texture and material support
+Note: This is a community-maintained version with Blender 5.0+ compatibility.
+"""
+
+credits = [
+    "Original XNALaraMesh authors",
+    "johnzero7 - Original addon development", 
+    "XNALara/XPS community"
+]

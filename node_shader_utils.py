@@ -7,12 +7,63 @@ from . import write_bin_xps
 from . import bin_ops
 from . import xps_material
 from . import xps_types
-from . import node_shader_utils
 from .timing import timing
 
 import bpy
 from mathutils import Vector
 from collections import Counter
+
+class XPSShaderWrapper:
+    def __init__(self, material, use_nodes=True):
+        self.material = material
+        self.use_nodes = use_nodes
+        
+        self.diffuse_texture = None
+        self.lightmap_texture = None
+        self.normalmap_texture = None
+        self.normal_mask_texture = None
+        self.microbump1_texture = None
+        self.microbump2_texture = None
+        self.specular_texture = None
+        self.environment_texture = None
+        self.emission_texture = None
+        
+        if material and use_nodes and material.use_nodes:
+            self._extract_textures_from_nodes()
+    
+    def _extract_textures_from_nodes(self):
+        for node in self.material.node_tree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image:
+                node_name = node.name.lower() if node.name else ""
+                node_label = node.label.lower() if node.label else ""
+                
+                if any(keyword in node_name or keyword in node_label 
+                       for keyword in ['diffuse', 'base color', 'albedo']):
+                    self.diffuse_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['light', 'lightmap', 'ambient']):
+                    self.lightmap_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['normal', 'bump', 'normals']):
+                    self.normalmap_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['mask', 'normalmask']):
+                    self.normal_mask_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['microbump1', 'detail1']):
+                    self.microbump1_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['microbump2', 'detail2']):
+                    self.microbump2_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['specular', 'spec']):
+                    self.specular_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['environment', 'reflection']):
+                    self.environment_texture = node
+                elif any(keyword in node_name or keyword in node_label 
+                         for keyword in ['emission', 'emissive', 'glow']):
+                    self.emission_texture = node
 
 rootDir = ''
 
@@ -160,8 +211,8 @@ def exportMeshes(selectedArmature, selectedMeshes):
                                             meshUvCount)
                 xpsMeshes.append(xpsMesh)
         else:
-            dummyTexture = [xps_types.XpsTexture(0, 'dummy.png', 0)]
-            xpsMesh = xps_types.XpsMesh(meshName[0], dummyTexture,
+            emptyTextures = []
+            xpsMesh = xps_types.XpsMesh(meshName[0], emptyTextures,
                                         meshVerts[0], meshFaces[0],
                                         meshUvCount)
             xpsMeshes.append(xpsMesh)
@@ -206,7 +257,7 @@ def getTextureFilename(texture):
 def makeXpsTexture(mesh, material):
     active_uv = mesh.data.uv_layers.active
     active_uv_index = mesh.data.uv_layers.active_index
-    xpsShaderWrapper = node_shader_utils.XPSShaderWrapper(material, use_nodes=True)
+    xpsShaderWrapper = XPSShaderWrapper(material, use_nodes=True)
 
     tex_dic = {}
     texture = getTextureFilename(xpsShaderWrapper.diffuse_texture)
@@ -234,18 +285,18 @@ def makeXpsTexture(mesh, material):
 
     texutre_list = []
     for tex_type in rgTextures:
-        texture = tex_dic.get(tex_type, 'missing.png')
-        texutre_list.append(texture)
+        texture = tex_dic.get(tex_type)
+        if texture:
+            texutre_list.append(texture)
 
     xpsTextures = []
-    for id, textute in enumerate(texutre_list):
-        xpsTexture = xps_types.XpsTexture(id, textute, 0)
+    for id, texture in enumerate(texutre_list):
+        xpsTexture = xps_types.XpsTexture(id, texture, 0)
         xpsTextures.append(xpsTexture)
 
     return xpsTextures
 
 def getTextures(mesh, material):
-    textures = []
     xpsTextures = makeXpsTexture(mesh, material)
     return xpsTextures
 

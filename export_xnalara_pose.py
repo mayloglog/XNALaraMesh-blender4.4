@@ -67,7 +67,13 @@ def exportPose():
         None
     )
     if not armature:
-        raise ValueError("No armature selected. Please select an armature to export the pose.")
+        armature = next(
+            (obj for obj in bpy.context.scene.objects if obj.type == 'ARMATURE'),
+            None
+        )
+    
+    if not armature:
+        raise ValueError("No armature found. Please select or create an armature to export the pose.")
 
     boneCount = len(armature.data.bones)
     print(f'Exporting pose for {boneCount} bones')
@@ -75,30 +81,37 @@ def exportPose():
     return xpsPoseData(armature)
 
 
-def xpsPoseData(armature):
-    context = bpy.context
-    current_mode = context.mode
-    current_obj = context.active_object
-
-    context.view_layer.objects.active = armature
-    bpy.ops.object.mode_set(mode='POSE')
-
-    pose_bones = armature.pose.bones
-    world_matrix = armature.matrix_world
-
-    pose_data = {}
-    for pose_bone in pose_bones:
-        bone_name = pose_bone.name
-        bone_pose = xpsPoseBone(pose_bone, world_matrix)
-        pose_data[bone_name] = bone_pose
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-    if current_obj:
-        context.view_layer.objects.active = current_obj
-    if current_mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode=current_mode)
-
-    return pose_data
+def xpsPoseData(armatureObj):
+    original_active = bpy.context.view_layer.objects.active
+    original_selected = bpy.context.selected_objects.copy()
+    
+    for obj in bpy.context.selected_objects:
+        obj.select_set(False)
+    
+    armatureObj.select_set(True)
+    bpy.context.view_layer.objects.active = armatureObj
+    
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
+    poseData = {}
+    for bone in armatureObj.pose.bones:
+        coord = xpsBoneTranslate(bone, armatureObj.matrix_world)
+        rot = xpsBoneRotate(bone)
+        scale = xpsBoneScale(bone)
+        
+        xpsBone = xps_types.XpsBonePose(bone.name, coord, rot, scale)
+        poseData[bone.name] = xpsBone
+    
+    for obj in bpy.context.selected_objects:
+        obj.select_set(False)
+    
+    for obj in original_selected:
+        obj.select_set(True)
+    
+    bpy.context.view_layer.objects.active = original_active
+    
+    return poseData
 
 
 def xpsPoseBone(pose_bone, object_matrix):
@@ -127,7 +140,11 @@ def vectorTransformScale(vec):
 
 
 def xpsBoneRotate(pose_bone):
-    pose_quat = pose_bone.matrix_basis.to_quaternion()
+    if pose_bone.rotation_mode == 'QUATERNION':
+        pose_quat = pose_bone.rotation_quaternion.copy()
+    else:
+        pose_quat = pose_bone.rotation_euler.to_quaternion()
+    
     edit_quat = pose_bone.bone.matrix_local.to_quaternion()
 
     delta_quat = edit_quat @ pose_quat @ edit_quat.inverted()
@@ -140,7 +157,10 @@ def xpsBoneTranslate(pose_bone, object_matrix):
     translate = pose_bone.location.copy()
     edit_quat = pose_bone.bone.matrix_local.to_quaternion()
     local_vec = edit_quat @ translate
-    world_vec = object_matrix.to_3x3() @ local_vec
+    
+    world_rot = object_matrix.to_3x3()
+    world_vec = world_rot @ local_vec
+    
     return vectorTransformTranslate(world_vec)
 
 

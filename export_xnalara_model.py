@@ -13,11 +13,9 @@ import bpy
 from mathutils import Vector
 from collections import Counter
 
-# 直接导入 XPSShaderWrapper 类
 try:
     from .node_shader_utils import XPSShaderWrapper
 except ImportError:
-    # 如果导入失败，创建一个简单的回退类
     class XPSShaderWrapper:
         def __init__(self, material, use_nodes=True):
             self.material = material
@@ -33,6 +31,8 @@ except ImportError:
             self.emission_texture = None
 
 rootDir = ''
+xpsSettings = None
+xpsData = None
 
 def coordTransform(coords):
     x, y, z = coords
@@ -93,8 +93,7 @@ def saveXpsFile(filename, xpsData):
 
 @timing
 def xpsExport():
-    global rootDir
-    global xpsData
+    global rootDir, xpsData
 
     print("------------------------------------------------------------")
     print("---------------EXECUTING XPS PYTHON EXPORTER----------------")
@@ -178,8 +177,7 @@ def exportMeshes(selectedArmature, selectedMeshes):
                                             meshUvCount)
                 xpsMeshes.append(xpsMesh)
         else:
-            dummyTexture = [xps_types.XpsTexture(0, 'dummy.png', 0)]
-            xpsMesh = xps_types.XpsMesh(meshName[0], dummyTexture,
+            xpsMesh = xps_types.XpsMesh(meshName[0], [],
                                         meshVerts[0], meshFaces[0],
                                         meshUvCount)
             xpsMeshes.append(xpsMesh)
@@ -252,8 +250,9 @@ def makeXpsTexture(mesh, material):
 
     texutre_list = []
     for tex_type in rgTextures:
-        texture = tex_dic.get(tex_type, 'missing.png')
-        texutre_list.append(texture)
+        texture = tex_dic.get(tex_type)
+        if texture:
+            texutre_list.append(texture)
 
     xpsTextures = []
     for id, textute in enumerate(texutre_list):
@@ -276,7 +275,11 @@ def getXpsMatTextures(mesh):
     return xpsMatTextures
 
 def generateVertexKey(vertex, uvCoord, seamSideId):
-    key = '{}{}{}{}'.format(vertex.co, vertex.normal, uvCoord, seamSideId)
+    # Fix: Convert vectors to strings properly
+    co_str = str(tuple(vertex.co))
+    normal_str = str(tuple(vertex.normal))
+    uv_str = str(tuple(uvCoord[0])) if uvCoord else "no_uv"
+    key = '{}{}{}{}'.format(co_str, normal_str, uv_str, seamSideId)
     return key
 
 def getXpsVertices(selectedArmature, mesh):
@@ -461,17 +464,3 @@ def boneDictGenerate(filepath, armatureObj):
     boneNames = sorted([import_xnalara_pose.renameBoneToXps(name) for name in armatureObj.data.bones.keys()])
     boneDictList = '\n'.join(';'.join((name,) * 2) for name in boneNames)
     write_ascii_xps.writeBoneDict(filepath, boneDictList)
-
-if __name__ == "__main__":
-    uvDisplX = 0
-    uvDisplY = 0
-    exportOnlySelected = True
-    exportPose = False
-    modProtected = False
-    filename = 'test_file.mesh'
-
-    xpsSettings = xps_types.XpsImportSettings(filename, uvDisplX, uvDisplY,
-                                              exportOnlySelected, exportPose,
-                                              modProtected)
-
-    getOutputFilename(xpsSettings)

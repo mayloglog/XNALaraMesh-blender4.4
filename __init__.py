@@ -1,20 +1,14 @@
-# <pep8 compliant>
-
-"""Blender Addon. XNALara/XPS importer/exporter."""
-
 bl_info = {
-    "name": "XNALara/XPS Import/Export",
+    "name": "XPS Import/Export",
     "author": "maylog, johnzero7",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (5, 0, 0),
     "location": "File > Import-Export > XNALara/XPS",
-    "description": "Import-Export XNALara/XPS models, poses and animations",
+    "description": "Fork of XNALara/XPS import-export tool with Blender 5.0 compatibility. Original addon by XNALara community.",
     "category": "Import-Export",
-    "support": "COMMUNITY",  
+    "support": "COMMUNITY",
 }
 
-#############################################
-# Support reloading sub-modules
 _modules = [
     'xps_panels',
     'xps_tools',
@@ -38,10 +32,8 @@ _modules = [
     'timing',
     'material_creator',
     'node_shader_utils',
-    # addon_updater_ops 已删除
 ]
 
-# Reload previously loaded modules
 if "bpy" in locals():
     import importlib
     for module in _modules_loaded:
@@ -49,7 +41,6 @@ if "bpy" in locals():
             importlib.reload(globals()[module])
     _modules_loaded[:] = []
 
-# First import the modules
 for name in _modules:
     if name in globals():
         continue
@@ -61,13 +52,10 @@ for name in _modules:
         print(f"Warning: Failed to import {name}: {e}")
 
 _modules_loaded = [globals()[name] for name in _modules if name in globals()]
-#############################################
 
 import bpy
 from bpy.utils import register_class, unregister_class
 
-
-# 所有需要注册的类（去掉了 UpdaterPreferences）
 classesToRegister = [
     xps_panels.XPSToolsObjectPanel,
     xps_panels.XPSToolsBonesPanel,
@@ -98,20 +86,12 @@ classesToRegister = [
 
 registerClasses, unregisterClasses = bpy.utils.register_classes_factory(classesToRegister)
 
-
 def register():
-    """Register addon classes."""
     registerClasses()
     xps_tools.register()
     print(f"{bl_info['name']} v{bl_info['version']} has been enabled.")
 
-
 def unregister():
-    """Unregister addon classes."""
     xps_tools.unregister()
     unregisterClasses()
     print(f"{bl_info['name']} has been disabled.")
-
-
-if __name__ == "__main__":
-    register()
