@@ -13,7 +13,7 @@ With Blender 4.40 released there where many changes.
 From v2.1.0 of this addon will only work with Blender 4.4.
 From v2.2.0 of this addon will only work with Blender 5.0.
 
-- Blender 5.00 ==> v2.2.0
+- Blender 5.00 ==> v2.2.0+
 - Blender 4.40 ==> v2.1.0
 
 Blender Toolshelf, an addon for Blender to:
