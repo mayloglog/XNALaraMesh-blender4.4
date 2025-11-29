@@ -1,10 +1,7 @@
-# __init__.py
-# 完全符合 https://developer.blender.org/docs/handbook/extensions/addon_dev_setup/#reloading-scripts
-
 bl_info = {
     "name": "XPS Import/Export",
     "author": "maylog, johnzero7",
-    "version": (2, 2, 2),
+    "version": (2, 2, 1),
     "blender": (5, 0, 0),
     "location": "File > Import-Export",
     "description": "Community-maintained fork of the original XNALara/XPS Tools. Fully Blender 5.0+ compatible.",

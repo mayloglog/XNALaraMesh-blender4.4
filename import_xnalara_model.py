@@ -621,19 +621,3 @@ def makeBoneGroups(armature_ob, mesh_ob):
         custom_colors.normal = bone_pose_surface_color
         custom_colors.select = bone_pose_color
         custom_colors.active = bone_pose_active_color
-
-def testImport():
-    test_settings = xps_types.XpsImportSettings(
-        filename="test_file.mesh",
-        uvDisplX=0,
-        uvDisplY=0,
-        importDefaultPose=True,
-        joinMeshRips=True,
-        markSeams=True,
-        vColors=True,
-        joinMeshParts=True,
-        connectBones=True,
-        autoIk=True,
-        importNormals=True
-    )
-    return getInputFilename(test_settings)

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 id = "io_xnalara"
 name = "XPS Import/Export"
-version = "2.2.2" 
+version = "2.2.1" 
 tagline = "Import-Export for XNALara/XPS files"
 maintainer = "maylog"
 type = "add-on"

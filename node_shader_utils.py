@@ -1,7 +1,6 @@
 import os
 from . import import_xnalara_pose
 from . import export_xnalara_pose
-from . import mock_xps_data
 from . import write_ascii_xps
 from . import write_bin_xps
 from . import bin_ops
@@ -152,7 +151,7 @@ def xpsExport():
     header = None
     hasHeader = bin_ops.hasHeader(xpsSettings.format)
     if hasHeader:
-        header = mock_xps_data.buildHeader(poseString)
+        header = None
         header.version_mayor = xpsSettings.versionMayor
         header.version_minor = xpsSettings.versionMinor
     xpsData = xps_types.XpsData(header=header, bones=xpsBones,
@@ -494,10 +493,3 @@ def boneDictGenerate(filepath, armatureObj):
     boneNames = sorted([import_xnalara_pose.renameBoneToXps(name) for name in armatureObj.data.bones.keys()])
     boneDictList = '\n'.join(';'.join((name,) * 2) for name in boneNames)
     write_ascii_xps.writeBoneDict(filepath, boneDictList)
-
-
-    xpsSettings = xps_types.XpsImportSettings(filename, uvDisplX, uvDisplY,
-                                              exportOnlySelected, exportPose,
-                                              modProtected)
-
-    getOutputFilename(xpsSettings)

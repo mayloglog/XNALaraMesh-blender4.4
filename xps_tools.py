@@ -161,11 +161,6 @@ class Import_Xps_Model_Op(bpy.types.Operator, ImportHelper):
         material_creator.create_group_nodes()
         status = import_xnalara_model.getInputFilename(xpsSettings)
         if status == '{NONE}':
-            # self.report({'DEBUG'}, "DEBUG File Format unrecognized")
-            # self.report({'INFO'}, "INFO File Format unrecognized")
-            # self.report({'OPERATOR'}, "OPERATOR File Format unrecognized")
-            # self.report({'WARNING'}, "WARNING File Format unrecognized")
-            # self.report({'ERROR'}, "ERROR File Format unrecognized")
             self.report({'ERROR'}, "ERROR File Format unrecognized")
         return {'FINISHED'}
 
@@ -710,7 +705,6 @@ class ImportXpsNgff(bpy.types.Operator, ImportHelper):
     )
 
     def execute(self, context):
-        # print("Selected: " + context.active_object.name)
         from . import import_obj
 
         if self.split_mode == 'OFF':
@@ -730,7 +724,7 @@ class ImportXpsNgff(bpy.types.Operator, ImportHelper):
                                         ).to_4x4()
         keywords["global_matrix"] = global_matrix
 
-        if bpy.data.is_saved and context.user_preferences.filepaths.use_relative_paths:
+        if bpy.data.is_saved and context.preferences.filepaths.use_relative_paths:
             import os
             keywords["relpath"] = os.path.dirname(bpy.data.filepath)
 
@@ -958,12 +952,39 @@ def unregisterCustomIcon():
 
 
 def register():
+    # 注册所有操作器类
+    bpy.utils.register_class(Import_Xps_Model_Op)
+    bpy.utils.register_class(Export_Xps_Model_Op)
+    bpy.utils.register_class(Import_Xps_Pose_Op)
+    bpy.utils.register_class(Export_Xps_Pose_Op)
+    bpy.utils.register_class(Import_Poses_To_Keyframes_Op)
+    bpy.utils.register_class(Export_Frames_To_Poses_Op)
+    bpy.utils.register_class(ArmatureBoneDictGenerate_Op)
+    bpy.utils.register_class(ArmatureBoneDictRename_Op)
+    bpy.utils.register_class(ArmatureBoneDictRestore_Op)
+    bpy.utils.register_class(ImportXpsNgff)
+    bpy.utils.register_class(ExportXpsNgff)
+    bpy.utils.register_class(XpsImportSubMenu)
+    bpy.utils.register_class(XpsExportSubMenu)
+    registerCustomIcon()
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
-    registerCustomIcon()
 
 
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     unregisterCustomIcon()
+    bpy.utils.unregister_class(XpsExportSubMenu)
+    bpy.utils.unregister_class(XpsImportSubMenu)
+    bpy.utils.unregister_class(ExportXpsNgff)
+    bpy.utils.unregister_class(ImportXpsNgff)
+    bpy.utils.unregister_class(ArmatureBoneDictRestore_Op)
+    bpy.utils.unregister_class(ArmatureBoneDictRename_Op)
+    bpy.utils.unregister_class(ArmatureBoneDictGenerate_Op)
+    bpy.utils.unregister_class(Export_Frames_To_Poses_Op)
+    bpy.utils.unregister_class(Import_Poses_To_Keyframes_Op)
+    bpy.utils.unregister_class(Export_Xps_Pose_Op)
+    bpy.utils.unregister_class(Import_Xps_Pose_Op)
+    bpy.utils.unregister_class(Export_Xps_Model_Op)
+    bpy.utils.unregister_class(Import_Xps_Model_Op)

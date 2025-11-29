@@ -138,3 +138,12 @@ class XPSToolsAnimPanel(_XpsPanels, bpy.types.Panel):
         c = col.column(align=True)
         r = c.row(align=True)
         r.operator('xps_tools.export_frames_to_poses', text='Frames to Poses')
+def register():
+    bpy.utils.register_class(XPSToolsObjectPanel)
+    bpy.utils.register_class(XPSToolsBonesPanel)
+    bpy.utils.register_class(XPSToolsAnimPanel)
+
+def unregister():
+    bpy.utils.unregister_class(XPSToolsObjectPanel)
+    bpy.utils.unregister_class(XPSToolsBonesPanel)
+    bpy.utils.unregister_class(XPSToolsAnimPanel)
