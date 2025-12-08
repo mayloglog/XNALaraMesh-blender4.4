@@ -3,6 +3,7 @@ import copy
 import operator
 import os
 import re
+from contextlib import ExitStack
 
 from . import import_xnalara_pose
 from . import read_ascii_xps
@@ -123,8 +124,7 @@ def xpsImport():
     armature_ob = createArmature()
     if armature_ob:
         linkToCollection(new_collection, armature_ob)
-        importBones(armature_ob)
-        markSelected(armature_ob)
+        importBones(armature_ob) # 骨骼导入和编辑都在这里完成
 
     meshes_obs = importMeshesList(armature_ob)
     for obj in meshes_obs:
@@ -134,7 +134,8 @@ def xpsImport():
     if armature_ob:
         armature_ob.pose.use_auto_ik = xpsSettings.autoIk
         hideUnusedBones([armature_ob])
-        boneTailMiddleObject(armature_ob, xpsSettings.connectBones)
+        # boneTailMiddleObject 已经被合并到 importBones 中，这里不再需要调用
+        # boneTailMiddleObject(armature_ob, xpsSettings.connectBones)
 
     if xpsSettings.importDefaultPose and armature_ob and xpsData.header and xpsData.header.pose:
         import_xnalara_pose.setXpsPose(armature_ob, xpsData.header.pose)
@@ -147,19 +148,18 @@ def setMinimumLenght(bone):
     if bone.length < default_length:
         bone.length = default_length
 
-def boneTailMiddleObject(armature_ob, connectBones):
-    bpy.context.view_layer.objects.active = armature_ob
-    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-    editBones = armature_ob.data.edit_bones
-    boneTailMiddle(editBones, connectBones)
-    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+# *** 移除 boneTailMiddleObject，其逻辑被合并到 importBones ***
 
 def setBoneConnect(connectBones):
     currMode = bpy.context.mode
-    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-    editBones = bpy.context.view_layer.objects.active.data.edit_bones
-    connectEditBones(editBones, connectBones)
-    bpy.ops.object.mode_set(mode=currMode, toggle=False)
+    
+    # 优化：使用 try...finally 确保模式切换正确
+    try:
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        editBones = bpy.context.view_layer.objects.active.data.edit_bones
+        connectEditBones(editBones, connectBones)
+    finally:
+        bpy.ops.object.mode_set(mode=currMode, toggle=False)
 
 def connectEditBones(editBones, connectBones):
     for bone in editBones:
@@ -269,36 +269,46 @@ def createArmature():
 def importBones(armature_ob):
     bones = xpsData.bones
 
+    # 优化：使用 try...finally 确保只切换模式一次，并在最后恢复
     bpy.context.view_layer.objects.active = armature_ob
-    bpy.ops.object.mode_set(mode='EDIT')
+    try:
+        bpy.ops.object.mode_set(mode='EDIT')
+        
+        editBones = armature_ob.data.edit_bones
+        newBoneName()
+        for bone in bones:
+            editBone = editBones.new(bone.name)
+            addBoneName(editBone.name)
 
-    newBoneName()
-    for bone in bones:
-        editBone = armature_ob.data.edit_bones.new(bone.name)
-        addBoneName(editBone.name)
+            transformedBone = coordTransform(bone.co)
+            editBone.head = Vector(transformedBone)
+            editBone.tail = Vector(editBone.head) + Vector((0, 0, -.1))
+            setMinimumLenght(editBone)
 
-        transformedBone = coordTransform(bone.co)
-        editBone.head = Vector(transformedBone)
-        editBone.tail = Vector(editBone.head) + Vector((0, 0, -.1))
-        setMinimumLenght(editBone)
+        bones_collection = armature_ob.data.collections.new("Bones")
+        bones_collection.is_visible = False
+        visible_bones_collection = armature_ob.data.collections.new("Visible Bones")
 
-    bones_collection = armature_ob.data.collections.new("Bones")
-    bones_collection.is_visible = False
-    visible_bones_collection = armature_ob.data.collections.new("Visible Bones")
+        for bone in editBones:
+            bones_collection.assign(bone)
+            visible_bones_collection.assign(bone)
 
-    for bone in armature_ob.data.edit_bones:
-        bones_collection.assign(bone)
-        visible_bones_collection.assign(bone)
+        for bone in bones:
+            if bone.parentId >= 0:
+                editBone = editBones[bone.id]
+                editBone.parent = editBones[bone.parentId]
+        
+        # 将骨尾计算逻辑合并到这里，避免额外的模式切换
+        boneTailMiddle(editBones, xpsSettings.connectBones)
 
-    for bone in bones:
-        if bone.parentId >= 0:
-            editBone = armature_ob.data.edit_bones[bone.id]
-            editBone.parent = armature_ob.data.edit_bones[bone.parentId]
+    finally:
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
     markSelected(armature_ob)
-    bpy.ops.object.mode_set(mode='OBJECT')
     return armature_ob
 
 def boneTailMiddle(editBones, connectBones):
+    # 此函数现在在 EDIT 模式下调用，不需要切换模式
     twistboneRegex = r'\b(hip)?(twist|ctr|root|adj)\d*\b'
     for bone in editBones:
         if bone.name.lower() == "root ground" or not bone.parent:
@@ -311,12 +321,10 @@ def boneTailMiddle(editBones, connectBones):
                 childBones = [childBone for childBone in bone.children if not re.search(twistboneRegex, childBone.name)]
 
             if childBones:
-                # Fix: Convert to list and calculate average
+                # 优化：使用Vector的求和能力计算平均值
                 child_heads = [childBone.head for childBone in childBones]
-                avg_x = sum(head.x for head in child_heads) / len(child_heads)
-                avg_y = sum(head.y for head in child_heads) / len(child_heads)
-                avg_z = sum(head.z for head in child_heads) / len(child_heads)
-                bone.tail = Vector((avg_x, avg_y, avg_z))
+                avg_vector = sum(child_heads, Vector((0.0, 0.0, 0.0))) / len(child_heads)
+                bone.tail = avg_vector
             else:
                 if bone.parent is not None:
                     if bone.head != bone.parent.tail:
@@ -424,7 +432,8 @@ def makeVertexDict(vertexDict, mergedVertList, uvLayers, vertColor, vertices):
 
     for vertex in vertices:
         vColor = vertex.vColor
-        uvLayerAppend(list(map(uvTransform, vertex.uv)))
+        # 优化：使用列表推导式代替 list(map)
+        uvLayerAppend([uvTransform(uv_item) for uv_item in vertex.uv]) 
         vertColorAppend(list(map(rangeByteToFloat, vColor)))
         vertexID = getVertexId(vertex, mapVertexKeys, mergedVertList)
         vertexDictAppend(vertexID)
