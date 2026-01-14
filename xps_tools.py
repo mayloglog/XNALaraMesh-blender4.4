@@ -203,11 +203,11 @@ class Export_Xps_Model_Op(bpy.types.Operator, CustomExportHelper):
         name='Format',
         description='Choose Export Format',
         items=(
-            ('.xps', 'XPS', 'Export as XPS Binary format (.xps)'),
+            #('.xps', 'XPS', 'Export as XPS Binary format (.xps)'),
             ('.mesh', 'MESH', 'Export as XnaLara/XPS Binary format (.mesh)'),
             ('.ascii', 'ASCII', 'Export as XnaLara/XPS Ascii format (.ascii)'),
         ),
-        default='.xps',
+        default='.ascii',
     )
 
     xps_version_mayor: bpy.props.EnumProperty(
