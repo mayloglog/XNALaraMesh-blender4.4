@@ -26,5 +26,8 @@ Main Features:
 - Creates Materials on import
 - Easily set a new rest pose for the model
 
+### Tips
 
-
+- We have switched the default export format to ASCII and disabled the binary XPS option due to persistent compatibility bugs.
+- ASCII is highly reliable and should work seamlessly for everyone.
+- I am still working on my technical skills and haven't found a permanent fix for the binary issue yet—if anyone in the community can help, I would greatly appreciate a code submission on GitHub. Thanks for sticking with me!
