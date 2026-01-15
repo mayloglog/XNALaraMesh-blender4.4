@@ -26,8 +26,11 @@ Main Features:
 - Creates Materials on import
 - Easily set a new rest pose for the model
 
-### Tips
+### Known Issues
 
-- We have switched the default export format to ASCII and disabled the binary XPS option due to persistent compatibility bugs.
-- ASCII is highly reliable and should work seamlessly for everyone.
-- I am still working on my technical skills and haven't found a permanent fix for the binary issue yet—if anyone in the community can help, I would greatly appreciate a code submission on GitHub. Thanks for sticking with me!
+- Summary: Due to critical compatibility issues with the XPS binary format, I have disabled the native .xps binary export. The exporter now redirects to ASCII format by default, which ensures perfect compatibility and stability.
+
+- Technical Details: The current mock_xps_data.py lacks the necessary file header logic. After I manually attempted to implement the header construction, it resulted in severe byte misalignment. While the file is generated, the scene appears empty upon re-import.
+The XPS format requires strict alignment for the 1080-byte Settings Block. Due to changes in Blender 5.0's I/O handling, the logic that worked in older versions now causes offset shifts. As an individual developer, the binary structure of XPS remains a "black box" to me, and my current technical skills are insufficient to perform the precise byte-level adjustments required to fix this.
+
+- Call for Help: I welcome any experienced developers to help fix this alignment issue. If you can resolve the binary header construction for Blender 5.0, please submit a Pull Request on GitHub. Thank you for your support!
