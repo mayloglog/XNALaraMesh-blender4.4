@@ -128,11 +128,11 @@ def eulerToXpsBoneRot(euler):
 
 
 def vectorTransform(vec):
-    return Vector((vec.x, -vec.y, vec.z))
+    return Vector((vec.x, vec.z, -vec.y))
 
 
 def vectorTransformTranslate(vec):
-    return Vector((vec.x, -vec.y, vec.z))
+    return Vector((vec.x, vec.z, -vec.y))
 
 
 def vectorTransformScale(vec):

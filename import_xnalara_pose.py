@@ -188,10 +188,10 @@ def xpsBoneRotToEuler(rotDelta):
     return Euler((radians(rotDelta.x), radians(rotDelta.y), radians(rotDelta.z)), 'YXZ')
 
 def vectorTransform(vec):
-    return Vector((vec.x, vec.z, -vec.y))
+    return Vector((vec.x, -vec.z, vec.y))
 
 def vectorTransformTranslate(vec):
-    return Vector((vec.x, vec.z, -vec.y))
+    return Vector((vec.x, -vec.z, vec.y))
 
 def vectorTransformScale(vec):
     return Vector((vec.x, vec.y, vec.z))
