@@ -588,7 +588,7 @@ def assignUvs(meshData, faces, uvLayers, vertexColors):
     makeUvs(meshData, faces, uvLayers, vertexColors)
 
 
-def setupMaterialAndRigging(meshObj, meshInfo, armatureObj):
+def setupMaterialAndRigging(meshObj, meshInfo, armatureObj, mergedVertexList):
     """Setting Up Materials and Rigging"""
     flags = xpsData.header.flags if xpsData.header else read_bin_xps.flagsDefault()
     material_creator.makeMaterial(xpsSettings, rootDir, meshObj.data, meshInfo, flags)
@@ -598,7 +598,7 @@ def setupMaterialAndRigging(meshObj, meshInfo, armatureObj):
         setParent(armatureObj, meshObj)
         if armatureObj.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
-        makeVertexGroups(meshObj, meshInfo.vertices)
+        makeVertexGroups(meshObj, mergedVertexList)
         makeBoneGroups(armatureObj, meshObj)
 
 
@@ -622,7 +622,7 @@ def importMesh(armatureObj, meshInfo):
     originalFaces = list(faceTransformList(meshInfo.faces))
     faces = createFaces(meshData, vertexDict, mergedVertexList, meshInfo, useSeams)
     assignUvs(meshData, originalFaces, uvLayers, vertexColors)
-    setupMaterialAndRigging(meshObj, meshInfo, armatureObj)
+    setupMaterialAndRigging(meshObj, meshInfo, armatureObj, mergedVertexList)
 
 
     if xpsSettings.importNormals and not hasattr(xpsSettings, 'skipNormals'):
