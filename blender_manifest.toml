@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 id = "io_xnalara"
 name = "XPS Import/Export"
-version = "2.2.7" 
+version = "2.2.8" 
 tagline = "Import-Export for XNALara/XPS files"
 maintainer = "maylog"
 type = "add-on"
@@ -27,4 +27,5 @@ credits = [
     "2025 Clothoid & original XPS Tools contributors",
     "2025 XNALara/XPS community",
     "2025 maylog – current maintainer, Blender 5.0+ update & Extensions submission"
+    "2026 uitcis – contribute to fixing incorrect weights in the code"
 ]
