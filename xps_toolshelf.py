@@ -198,3 +198,23 @@ class NewRestPose_Op(bpy.types.Operator):
     def invoke(self, context, event):
         self.action_common(context)
         return {"FINISHED"}
+
+
+def register():
+    bpy.utils.register_class(ArmatureBonesHideByName_Op)
+    bpy.utils.register_class(ArmatureBonesHideByVertexGroup_Op)
+    bpy.utils.register_class(ArmatureBonesShowAll_Op)
+    bpy.utils.register_class(ArmatureBonesRenameToBlender_Op)
+    bpy.utils.register_class(ArmatureBonesRenameToXps_Op)
+    bpy.utils.register_class(ArmatureBonesConnect_Op)
+    bpy.utils.register_class(NewRestPose_Op)
+
+
+def unregister():
+    bpy.utils.unregister_class(ArmatureBonesHideByName_Op)
+    bpy.utils.unregister_class(ArmatureBonesHideByVertexGroup_Op)
+    bpy.utils.unregister_class(ArmatureBonesShowAll_Op)
+    bpy.utils.unregister_class(ArmatureBonesRenameToBlender_Op)
+    bpy.utils.unregister_class(ArmatureBonesRenameToXps_Op)
+    bpy.utils.unregister_class(ArmatureBonesConnect_Op)
+    bpy.utils.unregister_class(NewRestPose_Op)

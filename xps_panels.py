@@ -91,13 +91,11 @@ class XPSToolsBonesPanel(_XpsPanels, bpy.types.Panel):
         col.label(text='Connect Bones:')
         c = col.column(align=True)
         r = c.row(align=True)
-        r.operator(
-            'xps_tools.bones_connect',
-            text='Connect All').connectBones = True
+        op = r.operator('xps_tools.bones_connect', text='Connect All')
+        op.connectBones = True
         r = c.row(align=True)
-        r.operator(
-            'xps_tools.bones_connect',
-            text='Disconnect All').connectBones = False
+        op = r.operator('xps_tools.bones_connect', text='Disconnect All')
+        op.connectBones = False
         col.label(text='New Rest Pose:')
         c = col.column(align=True)
         r = c.row(align=True)
