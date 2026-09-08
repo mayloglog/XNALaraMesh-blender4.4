@@ -24,15 +24,14 @@ def readUvVert(file):
 def readXYZ(file):
     line = ascii_ops.readline(file)
     if not line:
-        return [0.0, 0.0, 0.0]
+        return None  # None，[0.0, 0.0, 0.0]
     values = ascii_ops.splitValues(line)
     if len(values) < 3:
-        return [0.0, 0.0, 0.0]
-    x = (ascii_ops.getFloat(values[0]))  # X pos
-    y = (ascii_ops.getFloat(values[1]))  # Y pos
-    z = (ascii_ops.getFloat(values[2]))  # Z pos
-    coords = [x, y, z]
-    return coords
+        return None
+    x = (ascii_ops.getFloat(values[0]))
+    y = (ascii_ops.getFloat(values[1]))
+    z = (ascii_ops.getFloat(values[2]))
+    return [x, y, z]
 
 
 def fillArray(array, minLen, value):
@@ -92,15 +91,14 @@ def read4Int(file):
 def readTriIdxs(file):
     line = ascii_ops.readline(file)
     if not line:
-        return [0, 0, 0]
+        return None  #None，[0, 0, 0]
     values = ascii_ops.splitValues(line)
     if len(values) < 3:
-        return [0, 0, 0]
+        return None
     face1 = ascii_ops.getInt(values[0])
     face2 = ascii_ops.getInt(values[1])
     face3 = ascii_ops.getInt(values[2])
-    faceLoop = [face1, face2, face3]
-    return faceLoop
+    return [face1, face2, face3]
 
 
 def readBones(file):
@@ -139,7 +137,6 @@ def readMeshes(file, hasBones):
             meshName = ascii_ops.readString(file)
             if not meshName:
                 meshName = f'Mesh_{meshId}'
-            # print('Mesh Name:', meshName)
             
             # uv Count
             uvLayerCount = ascii_ops.readInt(file)
@@ -157,7 +154,6 @@ def readMeshes(file, hasBones):
                     textureFile = ntpath.basename(ascii_ops.readString(file))
                     if not textureFile:
                         textureFile = f"texture_{texId}.dds"
-                    # print('Texture file', textureFile)
                     uvLayerId = ascii_ops.readInt(file)
                     if uvLayerId is None:
                         uvLayerId = 0
@@ -173,24 +169,26 @@ def readMeshes(file, hasBones):
             vertexCount = ascii_ops.readInt(file)
             if vertexCount is None or vertexCount < 0:
                 vertexCount = 0
-                
+            
+            is_truncated = False
             for vertexId in range(vertexCount):
                 try:
                     coord = readXYZ(file)
-                    normal = readXYZ(file)
+                    if coord is None:
+                        print(f"[XPS Warning] Mesh {meshName} truncated at vertex {vertexId}!")
+                        is_truncated = True
+                        break
+
+                    normal = readXYZ(file) or [0.0, 0.0, 0.0]
                     vertexColor = read4Int(file)
 
                     uvs = []
                     for uvLayerId in range(uvLayerCount):
                         uvVert = readUvVert(file)
                         uvs.append(uvVert)
-                        # if ????
-                        # tangent????
-                        # tangent = read4float(file)
 
                     boneWeights = []
                     if hasBones:
-                        # if cero bones dont have weights to read
                         boneIdx = readBoneId(file)
                         boneWeight = readBoneWeight(file)
 
@@ -207,15 +205,20 @@ def readMeshes(file, hasBones):
             # Faces
             faces = []
             triCount = ascii_ops.readInt(file)
-            if triCount is None or triCount < 0:
+            if triCount is None or triCount < 0 or is_truncated:
                 triCount = 0
                 
+            max_valid_vert_idx = len(vertex) - 1
             for i in range(triCount):
                 try:
                     triIdxs = readTriIdxs(file)
-                    faces.append(triIdxs)
+                    if triIdxs is None:
+                        print(f"[XPS Warning] Mesh {meshName} truncated at face {i}!")
+                        break
+                    # 防越界检查：确保面引用的顶点索引不过度超出已读取顶点范围
+                    if all(0 <= idx <= max_valid_vert_idx for idx in triIdxs):
+                        faces.append(triIdxs)
                 except Exception as e:
-                    print(f"Error reading face {i}: {e}")
                     continue
                     
             xpsMesh = xps_types.XpsMesh(

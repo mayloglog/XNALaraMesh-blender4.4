@@ -502,9 +502,19 @@ def importMeshesList(armatureObj):
             status_msg = f"XPS Import: {i}/{totalMeshes} meshes..."
             bpy.context.workspace.status_text_set(status_msg)
         
-        mesh = importMesh(armatureObj, meshInfo)
-        if mesh:
-            importedMeshes.append(mesh)
+        # 1. 检查数据有效性
+        if not meshInfo or not getattr(meshInfo, 'vertices', None):
+            print(f"[XPS Warning] Skip invalid or empty data Mesh")
+            continue
+            
+        # 2. 增加捕获 protection，防止单个 Mesh 生成失败拉崩整个导入流程
+        try:
+            mesh = importMesh(armatureObj, meshInfo)
+            if mesh:
+                importedMeshes.append(mesh)
+        except Exception as e:
+            print(f"[XPS Error] build Mesh '{getattr(meshInfo, 'name', 'Unknown')}' error: {e}")
+            continue
 
     wm.progress_end()
     bpy.context.view_layer.update()
@@ -561,26 +571,32 @@ def createFaces(meshData, vertexDict, mergedVertexList, meshInfo, useSeams):
     seamEdgesDict = {}
     mergedVertices = {}
     for face in meshInfo.faces:
-        originalIndices = (face[0], face[1], face[2])
-        newIndices = (vertexDict[face[0]], vertexDict[face[1]], vertexDict[face[2]])
-        facesData.append(newIndices)
-        if useSeams and any(mergedVertexList[i].merged for i in newIndices):
-            findMergedEdges(seamEdgesDict, vertexDict, mergedVertexList, mergedVertices, originalIndices)
+        # 防越界保护：确保顶点索引在 vertexDict 范围内
+        if face[0] < len(vertexDict) and face[1] < len(vertexDict) and face[2] < len(vertexDict):
+            originalIndices = (face[0], face[1], face[2])
+            newIndices = (vertexDict[face[0]], vertexDict[face[1]], vertexDict[face[2]])
+            facesData.append(newIndices)
+            if useSeams and any(mergedVertexList[i].merged for i in newIndices if i < len(mergedVertexList)):
+                findMergedEdges(seamEdgesDict, vertexDict, mergedVertexList, mergedVertices, originalIndices)
 
     mergeByNormal = True
     vertices = mergedVertexList if mergeByNormal else meshInfo.vertices
     coords = [coordTransform(vertex.co) for vertex in vertices]
     normals = [coordTransform(Vector(vertex.norm).normalized()) for vertex in vertices]
-    faces = list(faceTransformList(facesData if mergeByNormal else meshInfo.faces))
+    raw_faces = list(faceTransformList(facesData if mergeByNormal else meshInfo.faces))
 
-    meshData.from_pydata(coords, [], faces)
+    # 核心防越界校验：只保留索引小于顶点总数的面，防止 C++ 底层闪退
+    max_vert_idx = len(coords) - 1
+    valid_faces = [f for f in raw_faces if all(0 <= idx <= max_vert_idx for idx in f)]
+
+    meshData.from_pydata(coords, [], valid_faces)
     meshData.polygons.foreach_set("use_smooth", [True] * len(meshData.polygons))
 
     if xpsSettings.markSeams:
         markSeams(meshData, seamEdgesDict)
 
     del coords, normals
-    return faces
+    return valid_faces
 
 
 def assignUvs(meshData, faces, uvLayers, vertexColors):
@@ -624,12 +640,21 @@ def importMesh(armatureObj, meshInfo):
     assignUvs(meshData, originalFaces, uvLayers, vertexColors)
     setupMaterialAndRigging(meshObj, meshInfo, armatureObj, mergedVertexList)
 
-
-    if xpsSettings.importNormals and not hasattr(xpsSettings, 'skipNormals'):
-        normals = [coordTransform(Vector(v.norm).normalized()) for v in mergedVertexList]
-        meshData.normals_split_custom_set_from_vertices(normals)
-    
+    # 1. 先验证并清理无效拓扑（防越界关键：提至法线设置之前）
     meshData.validate(clean_customdata=False)
+
+    # 2. 设置自定义法线（增加安全长度校验与异常捕获）
+    if xpsSettings.importNormals and not hasattr(xpsSettings, 'skipNormals'):
+        try:
+            normals = [coordTransform(Vector(v.norm).normalized()) for v in mergedVertexList if hasattr(v, 'norm')]
+            
+            # 核心防崩溃拦截：只有当生成的法线数量与 Blender 网格实际顶点数完全一致时才设置
+            if len(normals) == len(meshData.vertices) and len(normals) > 0:
+                meshData.normals_split_custom_set_from_vertices(normals)
+            else:
+                print(f"[XPS Warning] Mesh '{meshFullName}' Number of normals({len(normals)})Number of grid vertices({len(meshData.vertices)})Doesn't match, skipping import of custom normals.")
+        except Exception as e:
+            print(f"[XPS Warning] Mesh '{meshFullName}' Failed to set custom normals, error ignored: {e}")
 
     return meshObj
 
