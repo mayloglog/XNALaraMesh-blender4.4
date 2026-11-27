@@ -1,7 +1,7 @@
 bl_info = {
     "name": "XPS Import/Export",
     "author": "maylog",
-    "version": (2, 3, 1),
+    "version": (2, 3, 2),
     "blender": (5, 0, 0),
     "location": "File > Import-Export",
     "description": "Community-maintained fork of the original XNALara/XPS Tools. Fully Blender 5.0+ compatible.",
@@ -10,6 +10,10 @@ bl_info = {
     "credits": "2025 johnzero7 (original author), 2025 Clothoid, 2025 XNALara/XPS community, 2025 maylog (Blender 5.0+ update & Extensions submission)",
 }
 
+
+import bpy
+
+from .translations import translations_dict
 
 from . import (
     xps_panels,
@@ -63,6 +67,8 @@ modules = (
 )
 
 def register():
+    # Register i18n dictionaries before any UI is created.
+    bpy.app.translations.register(__name__, translations_dict)
     for mod in modules:
         if hasattr(mod, "register"):
             mod.register()
@@ -71,3 +77,4 @@ def unregister():
     for mod in reversed(modules):
         if hasattr(mod, "unregister"):
             mod.unregister()
+    bpy.app.translations.unregister(__name__)

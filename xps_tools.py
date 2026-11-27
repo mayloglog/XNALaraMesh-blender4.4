@@ -1,3 +1,5 @@
+from bpy.app.translations import pgettext_iface
+
 from . import export_xnalara_model
 from . import export_xnalara_pose
 from . import import_xnalara_model
@@ -161,7 +163,7 @@ class Import_Xps_Model_Op(bpy.types.Operator, ImportHelper):
         material_creator.create_group_nodes()
         status = import_xnalara_model.getInputFilename(xpsSettings)
         if status == '{NONE}':
-            self.report({'ERROR'}, "ERROR File Format unrecognized")
+            self.report({'ERROR'}, pgettext_iface("ERROR File Format unrecognized"))
         return {'FINISHED'}
 
     def draw(self, context):

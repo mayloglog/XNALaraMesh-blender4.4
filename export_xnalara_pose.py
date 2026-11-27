@@ -73,7 +73,8 @@ def exportPose():
         )
     
     if not armature:
-        raise ValueError("No armature found. Please select or create an armature to export the pose.")
+        from bpy.app.translations import pgettext
+        raise ValueError(pgettext("No armature found. Please select or create an armature to export the pose."))
 
     boneCount = len(armature.data.bones)
     print(f'Exporting pose for {boneCount} bones')
